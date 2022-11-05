@@ -45,3 +45,4 @@ def average_to_fixed_length(visual_input):
 from datasets.activitynet import ActivityNet
 from datasets.charades import Charades
 from datasets.tacos import TACoS
+from datasets.mad import MADdataset

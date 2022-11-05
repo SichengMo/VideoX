@@ -21,6 +21,7 @@ class Engine(object):
 
         self.hook('on_start', state)
         while state['epoch'] < state['maxepoch']:
+            print("Epoch number: %d."%(state['epoch']))
             self.hook('on_start_epoch', state)
             for sample in state['iterator']:
                 state['sample'] = sample
