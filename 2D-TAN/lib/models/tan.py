@@ -1,3 +1,4 @@
+import torch
 from torch import nn
 from core.config import config
 import models.frame_modules as frame_modules
@@ -34,3 +35,16 @@ class TAN(nn.Module):
         prediction = self.pred_layer(fused_h) * map_mask
 
         return fused_h, prediction, map_mask
+
+
+    def extract_vis_feats(self,visual_input):
+        vis_h = self.frame_layer(visual_input.transpose(1, 2))
+        map_h, map_mask = self.prop_layer(vis_h)
+        return map_h,map_mask
+
+    def get_prediction(self,textual_input,textual_mask,map_h,map_mask):
+        fused_h = self.fusion_layer(textual_input, textual_mask, map_h, map_mask)
+        fused_h = self.map_layer(fused_h, map_mask)
+        prediction = self.pred_layer(fused_h) * map_mask
+
+        return prediction, map_mask

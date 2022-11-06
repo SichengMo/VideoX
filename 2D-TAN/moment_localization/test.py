@@ -91,6 +91,7 @@ if __name__ == '__main__':
         textual_input = sample['batch_word_vectors'].cuda()
         textual_mask = sample['batch_txt_mask'].cuda()
         visual_input = sample['batch_vis_input'].cuda()
+
         map_gt = sample['batch_map_gt'].cuda()
         duration = sample['batch_duration']
 
@@ -165,7 +166,7 @@ if __name__ == '__main__':
                     merge_data[pair_id] = {
                         'video': dat['id'],
                         'duration': dat['duration'],
-                        'segment': [dat['segment'][0],dat['segment'][1]],
+                        'segment': [dat['segment'][0]*5,dat['segment'][1]*5],
                         'sentence': dat['sentence'],
                         #'query_idx': dat['query_idx'],
                     }

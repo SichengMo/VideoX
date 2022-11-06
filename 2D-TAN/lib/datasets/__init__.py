@@ -3,6 +3,7 @@ import torch.nn as nn
 from core.config import config
 
 def collate_fn(batch):
+    # print(batch)
     batch_word_vectors = [b['word_vectors'] for b in batch]
     batch_txt_mask = [b['txt_mask'] for b in batch]
     batch_map_gt = [b['map_gt'] for b in batch]
@@ -46,3 +47,4 @@ from datasets.activitynet import ActivityNet
 from datasets.charades import Charades
 from datasets.tacos import TACoS
 from datasets.mad import MADdataset
+from datasets.madtest import MADTestdataset

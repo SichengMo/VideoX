@@ -1,3 +1,6 @@
+
+from .inference import  Cache
+
 class Engine(object):
     def __init__(self):
         self.hooks = {}
@@ -57,12 +60,22 @@ class Engine(object):
         }
 
         self.hook('on_test_start', state)
+        index = 0
+        anno = iterator.dataset.annotations[index]
+
+
         for sample in state['iterator']:
             state['sample'] = sample
             self.hook('on_test_sample', state)
 
             def closure():
+
+
+
+
                 loss, output = state['network'](state['sample'])
+                # print(output)
+                # exit()
                 state['output'] = output
                 state['loss'] = loss
                 self.hook('on_test_forward', state)
@@ -72,5 +85,47 @@ class Engine(object):
 
             closure()
             state['t'] += 1
+        self.hook('on_test_end', state)
+        return state
+
+
+    def test1(self, network, iterator, split):
+        state = {
+            'network': network,
+            'iterator': iterator,
+            'split': split,
+            't': 0,
+            'train': False,
+        }
+
+        self.hook('on_test_start', state)
+        index = 0
+        anno_list = iterator.dataset.annotations
+        video_inferencer = Cache()
+
+        for sample in state['iterator']:
+            self.anno = anno_list[index]
+            state['sample'] = sample
+            self.hook('on_test_sample', state)
+
+            def closure():
+
+
+
+
+                loss, output = video_inferencer.do_inference(state['network'],state['sample'],self.anno)
+                #loss,output = state['network'](state['sample'])
+                print(output)
+                exit()
+                state['output'] = output
+                state['loss'] = loss
+                self.hook('on_test_forward', state)
+                # to free memory in save_for_backward
+                state['output'] = None
+                state['loss'] = None
+
+            closure()
+            state['t'] += 1
+            index +=1
         self.hook('on_test_end', state)
         return state
