@@ -44,16 +44,34 @@ class MADdataset(torch.utils.data.Dataset):
         cache_file = os.path.join(data_dir, (split + '.json'))
         self.missing =[]
 
+        index_file = os.path.join('data', 'MAD', ('mat_' + self.split + '_index.json'))
+
+
         # load cache anno file or create one
         try:
             with open(cache_file, 'r') as f:
                 self.data_list = json.load(f)
+
+            if self.split == 'test':
+                self.query_interval_index = json.load(index_file)
+                # use largest windows index as dataset size
+                self.dataset_size = 0
+                for key in self.query_interval_index.keys():
+                    if self.query_interval_index(key)[1] >= self.dataset_size:
+                        self.dataset_size = self.query_interval_index
+                self.dataset_size = self.dataset_size - 1
+
             print("Loaded form cache file")
+
         except:
             print("Start loading")
             self.data_list = self._load_annotation()
             with open(cache_file, 'w') as f:
                 json.dump(self.data_list, f)
+
+
+
+
 
         for each in sorted(self.missing):
             print(each)
@@ -68,10 +86,15 @@ class MADdataset(torch.utils.data.Dataset):
         self.videos = [video for video in self.videos]
         # print(self.videos)
         print(self.__len__())
-
+        self.annotation = self.data_list
     def __getitem__(self, idx):
 
-        data = self.data_list[idx]
+        if not self.split == 'test':
+            data = self.data_list[idx]
+        else:
+            window_offset,real_data_index = self._find_windows_num(idx)
+            data = self.data_list[real_data_index]
+
         sentence_id = data['sentence_id']
         sentence = data['sentence']
         duration = data['duration']
@@ -81,7 +104,7 @@ class MADdataset(torch.utils.data.Dataset):
             feat, iou2d, visual_mask = self._get_video_features_train(video_id, data)
         else:
             # not working now
-            feat, iou2d = self._get_video_features_test(video_id, data)
+            feat, iou2d,visual_mask = self._get_video_features_test(video_id, data,window_offset)
 
         feat = average_to_fixed_length(feat)
 
@@ -103,6 +126,8 @@ class MADdataset(torch.utils.data.Dataset):
         return item
 
     def __len__(self):
+
+
         return len(self.data_list)
 
     def _get_language_feature(self, sentence_id, sentence):
@@ -183,7 +208,17 @@ class MADdataset(torch.utils.data.Dataset):
 
         return feats, iou2d, torch.ones((128, 1))
 
-    def _get_video_features_test(self, video_id,data):
+    def _find_windows_num(self,idx):
+        window_offset = 0
+        data_list_inde = 0
+        for key in self.query_interval_index.keys():
+            window = self.query_interval_index(key)
+            if window[0] <= idx < window[1]:
+               window_offset = idx - window[0]
+               data_list_index = window[2]
+        return window_offset,data_list_index
+
+    def _get_video_features_test(self, video_id,data,windows_offset):
         '''
             INPUTS:
             anno: annotation data, contains all the preprocessed information
@@ -207,9 +242,9 @@ class MADdataset(torch.utils.data.Dataset):
         moive_feature = np.load(video_name)
         moive_feature = torch.from_numpy(moive_feature)
 
-        window_se = data['window']
-        feat_start = int(window_se[0])
-        feat_end = int(window_se[1])
+        #window_se = data['window']
+        feat_start = int(64*windows_offset)
+        feat_end = int(feat_start+128)
         try:
             window_feat = moive_feature[feat_start:feat_end,:]
         except:
@@ -232,6 +267,7 @@ class MADdataset(torch.utils.data.Dataset):
 
     def _load_annotation(self):
         self.missing = []
+        self.query_interval_index = {}
         with open(self.anno_file, 'r') as f:
             anno = json.load(f)
 
@@ -279,6 +315,9 @@ class MADdataset(torch.utils.data.Dataset):
                 duration = num_frames / fps
                 duration = value['duration']
                 # get sentence-event pairs
+
+                data_index = 0
+                data_list_index = 0
                 if 'annotations' in value:
                     for pair in value['annotations']:
                         start = max(pair['segment'][0], 0)
@@ -300,22 +339,34 @@ class MADdataset(torch.utils.data.Dataset):
                         self.window = 128
                         stride = 64
                         print("Will have %d windows for this window."%(int(num_frames/stride)))
+
+                        num_windows = int(num_frames/stride)
+
                         if int(clip_duration) - self.window + stride <= stride:
                             print('warning:', int(clip_duration), self.window, stride)
-                        for w_start in range(
-                                0, int(clip_duration) - self.window + stride, stride
-                        ):
+
+                        self.query_interval_index.update({id:(data_index,data_index+num_windows,data_list_index)})
+
+                        data_index += num_windows
+
+
+
+                        # for w_start in range(
+                        #         0, int(clip_duration) - self.window + stride, stride
+                        # ):
                             #new_anno =id
-                            data_list += (
-                                {
-                                'id'    : key,
-                                "duration": duration,
-                                "sentence": sentence,
-                                "window": [w_start, w_start + self.window],
-                                "sentence_id": id,
-                                "segment": (start,end),
-
-                            },
-                            )
-
+                        data_list += (
+                            {
+                            'id'    : key,
+                            "duration": duration,
+                            "sentence": sentence,
+                            #"window": [w_start, w_start + self.window],
+                            "sentence_id": id,
+                            "segment": (start,end),
+                        },
+                        )
+                        data_list_index += 1
+        if self.split != 'train':
+            with open(os.path.join('data', 'MAD', ('mat_' + self.split + '_index.json')), 'w') as f:
+                json.dump(self.query_interval_index, f)
         return data_list

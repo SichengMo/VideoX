@@ -77,6 +77,7 @@ if __name__ == '__main__':
     model  = model.to(device)
     model.eval()
 
+    global test_dataset
     test_dataset = getattr(datasets, config.DATASET.NAME)(args.split)
     dataloader = DataLoader(test_dataset,
                             batch_size=config.TRAIN.BATCH_SIZE,
@@ -138,7 +139,10 @@ if __name__ == '__main__':
         if merge_window:
             merge_seg = {}
             merge_data = {}
-            for seg, dat in zip(segments, data):
+            idxs = list(np.arrange(0,len(segments),1))
+            for seg, idx in zip(segments, idxs):
+                window_offset,real_data_index = test_dataset._find_windows_num(idx)
+                dat = data[real_data_index]
                 pair_id = dat['sentence_id']  # dat['anno_uid'] + '_' + str(dat['query_idx'])
                 if pair_id not in merge_seg.keys():  # new
                     merge_data[pair_id] = {
@@ -149,7 +153,8 @@ if __name__ == '__main__':
                         #'query_idx': dat['query_idx'],
                     }
                     merge_seg[pair_id] = []
-                offset = dat['window'][0]
+                offset = window_offset*64
+                # offset = dat['window'][0]
                 merge_seg[pair_id].extend([[se[0] + offset, se[1] + offset, se[2]] for se in seg])
             segments, data = [], []
             for k in merge_seg.keys():
