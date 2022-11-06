@@ -190,33 +190,33 @@ if __name__ == '__main__':
 
             loss_message = '\niter: {} train loss {:.4f}'.format(state['t'], state['loss_meter'].avg)
             table_message = ''
-            if config.TEST.EVAL_TRAIN:
-                train_state = engine.test(network, iterator('train_no_shuffle'), 'train')
-                train_table = eval.display_results(train_state['Rank@N,mIoU@M'], train_state['miou'],
-                                                   'performance on training set')
-                table_message += '\n'+ train_table
-            if not config.DATASET.NO_VAL:
-                val_state = engine.test(network, iterator('val'), 'val')
-                state['scheduler'].step(-val_state['loss_meter'].avg)
-                loss_message += ' val loss {:.4f}'.format(val_state['loss_meter'].avg)
-                val_state['loss_meter'].reset()
-                val_table = eval.display_results(val_state['Rank@N,mIoU@M'], val_state['miou'],
-                                                 'performance on validation set')
-                table_message += '\n'+ val_table
+            # if config.TEST.EVAL_TRAIN:
+            #     train_state = engine.test(network, iterator('train_no_shuffle'), 'train')
+            #     train_table = eval.display_results(train_state['Rank@N,mIoU@M'], train_state['miou'],
+            #                                        'performance on training set')
+            #     table_message += '\n'+ train_table
+            # if not config.DATASET.NO_VAL:
+            #     val_state = engine.test(network, iterator('val'), 'val')
+            #     state['scheduler'].step(-val_state['loss_meter'].avg)
+            #     loss_message += ' val loss {:.4f}'.format(val_state['loss_meter'].avg)
+            #     val_state['loss_meter'].reset()
+            #     val_table = eval.display_results(val_state['Rank@N,mIoU@M'], val_state['miou'],
+            #                                      'performance on validation set')
+            #     table_message += '\n'+ val_table
 
-            test_state = engine.test(network, iterator('test'), 'test')
-            loss_message += ' test loss {:.4f}'.format(test_state['loss_meter'].avg)
-            test_state['loss_meter'].reset()
-            test_table = eval.display_results(test_state['Rank@N,mIoU@M'], test_state['miou'],
-                                              'performance on testing set')
-            table_message += '\n' + test_table
+            # test_state = engine.test(network, iterator('test'), 'test')
+            # loss_message += ' test loss {:.4f}'.format(test_state['loss_meter'].avg)
+            # test_state['loss_meter'].reset()
+            # test_table = eval.display_results(test_state['Rank@N,mIoU@M'], test_state['miou'],
+            #                                   'performance on testing set')
+            # table_message += '\n' + test_table
 
             message = loss_message+table_message+'\n'
             logger.info(message)
 
-            saved_model_filename = os.path.join(config.MODEL_DIR,'{}/{}/iter{:06d}-{:.4f}-{:.4f}.pkl'.format(
+            saved_model_filename = os.path.join(config.MODEL_DIR,'{}/{}/iter{:06d}.pkl'.format(
                 dataset_name, model_name+'_'+config.DATASET.VIS_INPUT_TYPE,
-                state['t'], test_state['Rank@N,mIoU@M'][0,0], test_state['Rank@N,mIoU@M'][0,1]))
+                state['t']))
 
             rootfolder1 = os.path.dirname(saved_model_filename)
             rootfolder2 = os.path.dirname(rootfolder1)
