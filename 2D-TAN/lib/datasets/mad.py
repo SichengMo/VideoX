@@ -33,7 +33,6 @@ class MADdataset(torch.utils.data.Dataset):
         self.anno_file = os.path.join(data_dir, 'mad.json')
 
         self.num_pre_clips = 128
-        self.neg_prob = 0.7
         self.target_stride = 8
         self.num_clips = int(self.num_pre_clips / self.target_stride)
 
@@ -59,6 +58,8 @@ class MADdataset(torch.utils.data.Dataset):
         for each in sorted(self.missing):
             print(each)
 
+
+
         missing = {'missing': sorted(self.missing)}
         with open(os.path.join(data_dir, ('mad_'+self.split+'_missing'+'.json')),'w') as f:
             json.dump(missing,f)
@@ -66,6 +67,7 @@ class MADdataset(torch.utils.data.Dataset):
         self.videos = glob(os.path.join(self.vid_feat_dir, ('*.npy')))
         self.videos = [video for video in self.videos]
         # print(self.videos)
+        print(self.__len__())
 
     def __getitem__(self, idx):
 
@@ -80,6 +82,8 @@ class MADdataset(torch.utils.data.Dataset):
         else:
             # not working now
             feat, iou2d = self._get_video_features_test(video_id, data)
+
+        feat = average_to_fixed_length(feat)
 
         word_vectors = self._get_language_feature(sentence_id, sentence)
         index = idx
@@ -142,56 +146,44 @@ class MADdataset(torch.utils.data.Dataset):
 
         moive_feature = np.load(video_name)
         moive_feature = torch.from_numpy(moive_feature)
-        moive_feature = F.normalize(moive_feature, dim=1)
 
-        if random.random() > self.neg_prob:
 
-            start_idx, stop_idx = data['segment']
-            num_frames = int(stop_idx - start_idx)
-            if num_frames < self.num_pre_clips:
-                offset = random.sample(range(0, self.num_pre_clips - num_frames, 1), 1)[0]
-            else:
-                center = (start_idx + stop_idx) / 2
-                offset = int(round(center / 2))
 
-            # Compute features for window
-            start_window = max(int(start_idx) - offset, 0)
-            stop_window = start_window + self.num_pre_clips * self.input_stride
-            # print(start_window,stop_window)
-            if not stop_window <= data['duration'] * data['fps']:
-                stop_window = int(data['duration'] * data['fps'])
-                start_window = stop_window - self.num_pre_clips * self.input_stride
-
-            feats = moive_feature[start_window:stop_window: self.input_stride]
-
-            assert feats.shape[0] == self.num_pre_clips
-
-            # Compute moment position withint the windo
-            duration = self.num_pre_clips / data['fps']
-            start_moment = max((start_idx - start_window) / data['fps'], 0)
-            stop_moment = min((stop_idx - start_window) / data['fps'], duration)
-
-            moment = torch.tensor([start_moment, stop_moment])
-            # Generate targets for training ----------------------------------------------
-            iou2d = moment_to_iou2d(moment, self.num_clips, duration)
-            # print(iou2d.shape)
-
+        start_idx, stop_idx = data['segment']
+        num_frames = int(stop_idx - start_idx)
+        if num_frames < self.num_pre_clips:
+            offset = random.sample(range(0, self.num_pre_clips - num_frames, 1), 1)[0]
         else:
+            center = (start_idx + stop_idx) / 2
+            offset = int(round(center / 2))
 
-            start_window = random.randint(0, moive_feature.shape[0] - self.num_pre_clips * self.input_stride)
-            stop_window = start_window + self.num_pre_clips * self.input_stride
+        # Compute features for window
+        start_window = max(int(start_idx) - offset, 0)
+        stop_window = start_window + self.num_pre_clips * self.input_stride
+        # print(start_window,stop_window)
+        if not stop_window <= data['duration'] * data['fps']:
+            stop_window = int(data['duration'] * data['fps'])
+            start_window = stop_window - self.num_pre_clips * self.input_stride
 
-            if not stop_window <= data['duration'] * data['fps']:
-                stop_window = int(data['duration'] * data['fps'])
-                start_window = stop_window - self.num_pre_clips * self.input_stride
-            feats = moive_feature[start_window:stop_window:self.input_stride]
-            iou2d = torch.zeros(self.num_clips, self.num_clips)
+        feats = moive_feature[start_window:stop_window: self.input_stride]
 
-            assert feats.shape[0] == self.num_pre_clips
+        assert feats.shape[0] == self.num_pre_clips
+
+        # Compute moment position withint the windo
+        duration = self.num_pre_clips / data['fps']
+        start_moment = max((start_idx - start_window) / data['fps'], 0)
+        stop_moment = min((stop_idx - start_window) / data['fps'], duration)
+
+        moment = torch.tensor([start_moment, stop_moment])
+        # Generate targets for training ----------------------------------------------
+        iou2d = moment_to_iou2d(moment, self.num_clips, duration)
+        # print(iou2d.shape)
+
+        feats = F.normalize(feats, dim=1)
 
         return feats, iou2d, torch.ones((128, 1))
 
-    def _get_video_features_test(self, anno, movie):
+    def _get_video_features_test(self, video_id,data):
         '''
             INPUTS:
             anno: annotation data, contains all the preprocessed information
@@ -202,29 +194,34 @@ class MADdataset(torch.utils.data.Dataset):
             iou2d: target matrix
         '''
 
-        windows = self.windows[movie]
-        windows_feats = torch.stack([self.feats[movie][w[0]:w[1]] for w in windows])
-        return windows_feats, torch.empty((1))
 
-    def _compute_windows_per_movie(self, test_stride):
-        '''
-            INPUTS:
-            anno: annotation data, contains all the preprocessed information
-            movie: movie id to select the correct features
+        self.input_stride = 1
+        video_name = ''
 
-            OUTPUTS:
-            feat: movie features
-            iou2d: target matrix
-        '''
+        # first load the video
+        for name in self.videos:
+            if video_id in name:
+                video_name = name
+                break
 
-        self.windows = {}
-        for m in self.movies.keys():
-            num_feats = len(self.feats[m])
+        moive_feature = np.load(video_name)
+        moive_feature = torch.from_numpy(moive_feature)
 
-            starts = torch.arange(0, num_feats - self.num_pre_clips, test_stride, dtype=torch.int)
-            stops = starts + self.num_pre_clips
+        window_se = data['window']
+        feat_start = int(window_se[0])
+        feat_end = int(window_se[1])
+        try:
+            window_feat = moive_feature[feat_start:feat_end,:]
+        except:
+            window_feat = moive_feature[feat_start:,:]
+        feat = window_feat
 
-            self.windows[m] = torch.stack([starts, stops]).transpose(1, 0)
+        feat = F.normalize(feat,dim=1)
+        vis_mask = torch.ones(feat.shape[0],1)
+
+        iou = torch.zeros(1)
+
+        return feat_start,iou,vis_mask
 
     def check(self,sentence_id):
         path = os.path.join(self.text_feat_dir, ("{:06d}".format(int(sentence_id)) + ".npy"))
@@ -245,34 +242,80 @@ class MADdataset(torch.utils.data.Dataset):
             anno_db.update(anno[s])
 
         data_list = tuple()
-        for key, value in tqdm(anno_db.items()):
-            fps, num_frames = value['fps'], value['num_frames']
-            duration = num_frames / fps
-            duration = value['duration']
-            # get sentence-event pairs
-            if 'annotations' in value:
-                for pair in value['annotations']:
-                    start = max(pair['segment'][0], 0)
-                    end = min(pair['segment'][1], duration)
-                    if start >= end:
-                        continue
-                    # print(pair)
-                    sentence = pair['sentence'].strip().lower()
-                    id = pair['sentence_id']
+        if self.split == 'train':
+            for key, value in tqdm(anno_db.items()):
+                fps, num_frames = value['fps'], value['num_frames']
+                duration = num_frames / fps
+                duration = value['duration']
+                # get sentence-event pairs
+                if 'annotations' in value:
+                    for pair in value['annotations']:
+                        start = max(pair['segment'][0], 0)
+                        end = min(pair['segment'][1], duration)
+                        if start >= end:
+                            continue
+                        # print(pair)
+                        sentence = pair['sentence'].strip().lower()
+                        id = pair['sentence_id']
 
-                    missing = self.check(id)
-                    if missing != None:
-                        self.missing.append(missing)
-                        continue
-                    data_list += (
-                        {'id': key,
-                         'fps': fps,
-                         'num_frames': num_frames,
-                         'duration': duration,
-                         'sentence': sentence,
-                         'segment': (start, end),
-                         "sentence_id": id
-                         },
-                    )
+                        missing = self.check(id)
+                        if missing != None:
+                            self.missing.append(missing)
+                            continue
+                        data_list += (
+                            {'id': key,
+                             'fps': fps,
+                             'num_frames': num_frames,
+                             'duration': duration,
+                             'sentence': sentence,
+                             'segment': (start, end),
+                             "sentence_id": id
+                             },
+                        )
+        else:
+            query_loop_count = 0
+            for key, value in tqdm(anno_db.items()):
+                fps, num_frames = value['fps'], value['num_frames']
+                duration = num_frames / fps
+                duration = value['duration']
+                # get sentence-event pairs
+                if 'annotations' in value:
+                    for pair in value['annotations']:
+                        start = max(pair['segment'][0], 0)
+                        end = min(pair['segment'][1], duration)
+                        if start >= end:
+                            continue
+                        # print(pair)
+                        sentence = pair['sentence'].strip().lower()
+                        id = pair['sentence_id']
+                        query_loop_count +=1
+
+
+                        missing = self.check(id)
+                        if missing != None:
+                            self.missing.append(missing)
+                            continue
+                        clip_duration = num_frames
+
+                        self.window = 128
+                        stride = 64
+                        print("Will have %d windows for this window."%(int(num_frames/stride)))
+                        if int(clip_duration) - self.window + stride <= stride:
+                            print('warning:', int(clip_duration), self.window, stride)
+                        for w_start in range(
+                                0, int(clip_duration) - self.window + stride, stride
+                        ):
+                            #new_anno =id
+                            data_list += (
+                                {
+                                'id'    : key,
+                                "duration": duration,
+                                "sentence": sentence,
+                                "window": [w_start, w_start + self.window],
+                                "sentence_id": id,
+                                "segment": (start,end),
+
+                            },
+                            )
 
         return data_list

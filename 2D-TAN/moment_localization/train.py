@@ -281,9 +281,9 @@ if __name__ == '__main__':
     engine.hooks['on_forward'] = on_forward
     engine.hooks['on_update'] = on_update
     engine.hooks['on_end'] = on_end
-    engine.hooks['on_test_start'] = on_test_start
-    engine.hooks['on_test_forward'] = on_test_forward
-    engine.hooks['on_test_end'] = on_test_end
+    # engine.hooks['on_test_start'] = on_test_start
+    # engine.hooks['on_test_forward'] = on_test_forward
+    # engine.hooks['on_test_end'] = on_test_end
     engine.train(network,
                  iterator('train'),
                  maxepoch=config.TRAIN.MAX_EPOCH,

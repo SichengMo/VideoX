@@ -14,7 +14,7 @@ import datasets
 import models
 from core.utils import AverageMeter
 from core.config import config, update_config
-from core.eval import eval_predictions, display_results
+from core.eval import eval_predictions, display_results,nms,eval
 import models.loss as loss
 
 torch.manual_seed(0)
@@ -133,13 +133,47 @@ if __name__ == '__main__':
         sorted_segments = [state['output'][i] for i in batch_indexs]
         state['sorted_segments_list'].extend(sorted_segments)
 
+
+    def post_process(segments, data, verbose=True, merge_window=False, run_eval=True):
+        if merge_window:
+            merge_seg = {}
+            merge_data = {}
+            for seg, dat in zip(segments, data):
+                pair_id = dat['sentence_id']  # dat['anno_uid'] + '_' + str(dat['query_idx'])
+                if pair_id not in merge_seg.keys():  # new
+                    merge_data[pair_id] = {
+                        'video': dat['id'],
+                        'duration': dat['duration'],
+                        'segment': dat['segment'],
+                        'sentence': dat['sentence'],
+                        #'query_idx': dat['query_idx'],
+                    }
+                    merge_seg[pair_id] = []
+                offset = dat['window'][0]
+                merge_seg[pair_id].extend([[se[0] + offset, se[1] + offset, se[2]] for se in seg])
+            segments, data = [], []
+            for k in merge_seg.keys():
+                segments.append(sorted(merge_seg[k], key=lambda x: x[2], reverse=True))
+                data.append(merge_data[k])
+
+        segments = [nms(seg, thresh=config.TEST.NMS_THRESH, top_k=5).tolist() for seg in segments]
+
+        if run_eval:
+            eval_result, miou = eval(segments, data)
+        else:
+        #     save_prediction_to_file(config.RESULT, merge_seg, merge_data)
+        #     print('Prediction result is saved to {}'.format(config.RESULT))
+             eval_result, miou = 0, 0
+
+        return eval_result, miou
+
     def on_test_end(state):
         if config.VERBOSE:
             state['progress_bar'].close()
             print()
 
         annotations = test_dataset.annotations
-        state['Rank@N,mIoU@M'], state['miou'] = eval_predictions(state['sorted_segments_list'], annotations, verbose=True)
+        state['Rank@N,mIoU@M'], state['miou'] = post_process(state['sorted_segments_list'], annotations, True,merge_window=True,run_eval=True)
 
         loss_message = '\ntest loss {:.4f}'.format(state['loss_meter'].avg)
         print(loss_message)
