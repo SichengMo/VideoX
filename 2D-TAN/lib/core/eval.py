@@ -60,7 +60,10 @@ def eval(segments, data):
     average_iou = []
     for seg, dat in zip(segments, data):
         seg = nms(seg, thresh=config.TEST.NMS_THRESH, top_k=max_recall).tolist()
-        overlap = iou(seg, [dat['times']])
+        #print(seg)
+        #print(dat['segment'])
+
+        overlap = iou(seg, [list(dat['segment'])])
         average_iou.append(np.mean(np.sort(overlap[0])[-3:]))
 
         for i,t in enumerate(tious):

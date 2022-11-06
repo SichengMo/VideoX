@@ -86,7 +86,7 @@ class MADdataset(torch.utils.data.Dataset):
         self.videos = [video for video in self.videos]
         # print(self.videos)
         print(self.__len__())
-        self.annotation = self.data_list
+        self.annotations = self.data_list
     def __getitem__(self, idx):
 
         if not self.split == 'test':
@@ -122,7 +122,7 @@ class MADdataset(torch.utils.data.Dataset):
             'txt_mask': torch.ones(word_vectors.shape[0], 1),
             'map_gt': overlaps,
         }
-
+        #print(visual_input.shape)
         return item
 
     def __len__(self):
@@ -175,6 +175,8 @@ class MADdataset(torch.utils.data.Dataset):
 
 
         start_idx, stop_idx = data['segment']
+        start_idx = start_idx* data['fps']
+        stop_idx = stop_idx * data['fps']
         num_frames = int(stop_idx - start_idx)
         if num_frames < self.num_pre_clips:
             offset = random.sample(range(0, self.num_pre_clips - num_frames, 1), 1)[0]
@@ -212,10 +214,12 @@ class MADdataset(torch.utils.data.Dataset):
         window_offset = 0
         data_list_inde = 0
         for key in self.query_interval_index.keys():
-            window = self.query_interval_index(key)
+            window = self.query_interval_index[key]
             if window[0] <= idx < window[1]:
-               window_offset = idx - window[0]
-               data_list_index = window[2]
+                # print(window,idx)
+                window_offset = idx - window[0]
+                data_list_index = window[2]
+                break
         return window_offset,data_list_index
 
     def _get_video_features_test(self, video_id,data,windows_offset):
@@ -245,6 +249,10 @@ class MADdataset(torch.utils.data.Dataset):
         #window_se = data['window']
         feat_start = int(64*windows_offset)
         feat_end = int(feat_start+128)
+        # print(feat_start)
+        # print(feat_end)
+        # print(moive_feature.shape)
+        # print("________________________________________")
         try:
             window_feat = moive_feature[feat_start:feat_end,:]
         except:
@@ -252,11 +260,11 @@ class MADdataset(torch.utils.data.Dataset):
         feat = window_feat
 
         feat = F.normalize(feat,dim=1)
-        vis_mask = torch.ones(feat.shape[0],1)
+        vis_mask = torch.ones((128,1))
 
-        iou = torch.zeros(1)
+        iou = torch.zeros(16,16)
 
-        return feat_start,iou,vis_mask
+        return feat,iou,vis_mask
 
     def check(self,sentence_id):
         path = os.path.join(self.text_feat_dir, ("{:06d}".format(int(sentence_id)) + ".npy"))
@@ -291,6 +299,9 @@ class MADdataset(torch.utils.data.Dataset):
                         if start >= end:
                             continue
                         # print(pair)
+                        # start = start* 5
+                        # end = end * 5
+
                         sentence = pair['sentence'].strip().lower()
                         id = pair['sentence_id']
 
@@ -310,20 +321,25 @@ class MADdataset(torch.utils.data.Dataset):
                         )
         else:
             query_loop_count = 0
+            data_index = 0
+            data_list_index = 0
             for key, value in tqdm(anno_db.items()):
                 fps, num_frames = value['fps'], value['num_frames']
                 duration = num_frames / fps
                 duration = value['duration']
                 # get sentence-event pairs
 
-                data_index = 0
-                data_list_index = 0
+                if data_list_index >= 10000:
+                    break
                 if 'annotations' in value:
                     for pair in value['annotations']:
                         start = max(pair['segment'][0], 0)
                         end = min(pair['segment'][1], duration)
                         if start >= end:
                             continue
+
+                        # start = start* 5
+                        # end = end * 5
                         # print(pair)
                         sentence = pair['sentence'].strip().lower()
                         id = pair['sentence_id']
@@ -338,7 +354,7 @@ class MADdataset(torch.utils.data.Dataset):
 
                         self.window = 128
                         stride = 64
-                        print("Will have %d windows for this window."%(int(num_frames/stride)))
+                        #print("Will have %d windows for this window."%(int(num_frames/stride)))
 
                         num_windows = int(num_frames/stride)
 
@@ -358,6 +374,7 @@ class MADdataset(torch.utils.data.Dataset):
                         data_list += (
                             {
                             'id'    : key,
+                            'fps'   : fps,
                             "duration": duration,
                             "sentence": sentence,
                             #"window": [w_start, w_start + self.window],

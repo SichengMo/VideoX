@@ -80,7 +80,7 @@ if __name__ == '__main__':
     global test_dataset
     test_dataset = getattr(datasets, config.DATASET.NAME)(args.split)
     dataloader = DataLoader(test_dataset,
-                            batch_size=config.TRAIN.BATCH_SIZE,
+                            batch_size=config.TEST.BATCH_SIZE,
                             shuffle=False,
                             num_workers=config.WORKERS,
                             pin_memory=False,
@@ -101,21 +101,38 @@ if __name__ == '__main__':
 
         return loss_value, sorted_times
 
+    # def get_proposal_results(scores, durations):
+    #     # assume all valid scores are larger than one
+    #     out_sorted_times = []
+    #     for score, duration in zip(scores, durations):
+    #         T = score.shape[-1]
+    #         sorted_indexs = np.dstack(np.unravel_index(np.argsort(score.cpu().detach().numpy().ravel())[::-1], (T, T))).tolist()
+    #         sorted_indexs = np.array([item for item in sorted_indexs[0] if item[0] <= item[1]]).astype(float)
+    #
+    #         sorted_indexs[:,1] = sorted_indexs[:,1] + 1
+    #         sorted_indexs = torch.from_numpy(sorted_indexs).cuda()
+    #         target_size = config.DATASET.NUM_SAMPLE_CLIPS // config.DATASET.TARGET_STRIDE
+    #         out_sorted_times.append((sorted_indexs.float() / target_size * duration).tolist())
+    #
+    #     return out_sorted_times
+
     def get_proposal_results(scores, durations):
         # assume all valid scores are larger than one
         out_sorted_times = []
         for score, duration in zip(scores, durations):
             T = score.shape[-1]
-            sorted_indexs = np.dstack(np.unravel_index(np.argsort(score.cpu().detach().numpy().ravel())[::-1], (T, T))).tolist()
+            score_cpu = score.cpu().detach().numpy()
+            sorted_indexs = np.dstack(np.unravel_index(np.argsort(score_cpu.ravel())[::-1], (T, T))).tolist()
             sorted_indexs = np.array([item for item in sorted_indexs[0] if item[0] <= item[1]]).astype(float)
+            sorted_scores = np.array([score_cpu[0, int(x[0]),int(x[1])] for x in sorted_indexs])
 
             sorted_indexs[:,1] = sorted_indexs[:,1] + 1
             sorted_indexs = torch.from_numpy(sorted_indexs).cuda()
             target_size = config.DATASET.NUM_SAMPLE_CLIPS // config.DATASET.TARGET_STRIDE
-            out_sorted_times.append((sorted_indexs.float() / target_size * duration).tolist())
+            sorted_time = (sorted_indexs.float() / target_size * duration).tolist()
+            out_sorted_times.append([[t[0], t[1], s] for t, s in zip(sorted_time, sorted_scores)])
 
         return out_sorted_times
-
 
     def on_test_start(state):
         state['loss_meter'] = AverageMeter()
@@ -139,7 +156,7 @@ if __name__ == '__main__':
         if merge_window:
             merge_seg = {}
             merge_data = {}
-            idxs = list(np.arrange(0,len(segments),1))
+            idxs = list(np.arange(0,len(segments),1))
             for seg, idx in zip(segments, idxs):
                 window_offset,real_data_index = test_dataset._find_windows_num(idx)
                 dat = data[real_data_index]
@@ -148,13 +165,14 @@ if __name__ == '__main__':
                     merge_data[pair_id] = {
                         'video': dat['id'],
                         'duration': dat['duration'],
-                        'segment': dat['segment'],
+                        'segment': [dat['segment'][0],dat['segment'][1]],
                         'sentence': dat['sentence'],
                         #'query_idx': dat['query_idx'],
                     }
                     merge_seg[pair_id] = []
                 offset = window_offset*64
                 # offset = dat['window'][0]
+                #print(seg)
                 merge_seg[pair_id].extend([[se[0] + offset, se[1] + offset, se[2]] for se in seg])
             segments, data = [], []
             for k in merge_seg.keys():

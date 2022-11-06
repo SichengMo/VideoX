@@ -78,4 +78,4 @@ TAN:
 
 MODEL:
   NAME: TAN
-  CHECKPOINT: ./checkpoints/TACoS/iter010370-0.4759-0.7031.pkl
+  CHECKPOINT: ./checkpoints/MADdataset/TAN_clip/iter008750.pkl
