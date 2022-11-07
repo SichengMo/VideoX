@@ -43,7 +43,7 @@ class MADdataset(torch.utils.data.Dataset):
         self.text_feat_dir = os.path.join(data_dir, 'token_512d')
         self.anno_file = os.path.join(data_dir, 'mad.json')
 
-        self.num_pre_clips = 128
+        self.num_pre_clips = 256
         self.target_stride = 8
         self.num_clips = int(self.num_pre_clips / self.target_stride)
 
@@ -312,7 +312,7 @@ class MADdataset(torch.utils.data.Dataset):
             self.cache_videos.update({video_id:moive_feature})
         #window_se = data['window']
         feat_start = int(64*windows_offset)
-        feat_end = int(feat_start+128)
+        feat_end = int(feat_start+self.num_pre_clips)
 
         try:
             window_feat = moive_feature[feat_start:feat_end,:]
@@ -321,7 +321,7 @@ class MADdataset(torch.utils.data.Dataset):
         feat = window_feat
 
         feat = F.normalize(feat,dim=1)
-        vis_mask = torch.ones((128,1))
+        vis_mask = torch.ones((self.num_pre_clips,1))
 
         iou = torch.zeros(16,16)
 
@@ -429,7 +429,7 @@ class MADdataset(torch.utils.data.Dataset):
                             continue
                         clip_duration = num_frames
 
-                        self.window = 128
+                        self.window = self.num_pre_clips
                         stride = 64
                         #print("Will have %d windows for this window."%(int(num_frames/stride)))
 
