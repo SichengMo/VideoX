@@ -194,7 +194,7 @@ class MADdataset(torch.utils.data.Dataset):
             offset = random.sample(range(0, self.num_pre_clips - num_frames, 1), 1)[0]
         else:
             center = (start_idx + stop_idx) / 2
-            offset = int(round(center / 2)) # keep the setting as orig github repo
+            offset = int(round(stop_idx-center)) # keep the setting as orig github repo
 
         # Compute features for window
         start_window = max(int(start_idx) - offset, 0)
