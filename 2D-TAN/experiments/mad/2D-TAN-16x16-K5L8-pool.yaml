@@ -1,4 +1,4 @@
-WORKERS: 0
+WORKERS: 16
 
 MODEL_DIR: ./checkpoints
 RESULT_DIR: ./results
@@ -15,11 +15,11 @@ DATASET:
   RANDOM_SAMPLING: False
 
 TEST:
-  BATCH_SIZE: 128
+  BATCH_SIZE: 32
   RECALL: 1,5,10,50,100
   TIOU: 0.1,0.3,0.5
   EVAL_TRAIN: False
-  NMS_THRESH: 0.3
+  NMS_THRESH: 0.03
 
 CUDNN:
   DETERMINISTIC: False
@@ -31,6 +31,7 @@ TRAIN:
   WEIGHT_DECAY: 0.0000
   MAX_EPOCH: 5
   CONTINUE: False
+  SHUFFLE: False
 
 LOSS:
   NAME: bce_rescale_loss
@@ -78,4 +79,4 @@ TAN:
 
 MODEL:
   NAME: TAN
-  CHECKPOINT: ./checkpoints/MADdataset/TAN_clip/iter017490.pkl
+  CHECKPOINT: ./checkpoints/MADdataset/TAN_clip/iter002186.pkl

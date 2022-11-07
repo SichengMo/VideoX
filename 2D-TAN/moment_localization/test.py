@@ -183,6 +183,13 @@ if __name__ == '__main__':
                 offset = window_offset*64/5
                 # offset = dat['window'][0]
                 #print(seg)
+                count = 0
+                if idx == 0:
+                    for se in seg:
+                        if not count >= 20:
+                            print(se)
+                        count+=1
+
                 merge_seg[pair_id].extend([[se[0] + offset, se[1] + offset, se[2]] for se in seg])
             # print(merge_seg.keys())
             segments, data = [], []
@@ -190,7 +197,7 @@ if __name__ == '__main__':
                 segments.append(sorted(merge_seg[k], key=lambda x: x[2], reverse=True))
                 data.append(merge_data[k])
 
-        segments = [nms(seg, thresh=config.TEST.NMS_THRESH, top_k=50).tolist() for seg in segments]
+        segments = [nms(seg, thresh=config.TEST.NMS_THRESH, top_k=100).tolist() for seg in segments]
 
         if run_eval:
             eval_result, miou = eval(segments, data)

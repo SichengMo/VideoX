@@ -221,8 +221,8 @@ class MADdataset(torch.utils.data.Dataset):
 
         # Compute moment position withint the windo
         duration = self.num_pre_clips / data['fps']
-        start_moment = max((start_idx) / data['fps'], 0)
-        stop_moment = min((stop_idx) / data['fps'], duration)
+        start_moment = max((start_window) / data['fps'], 0)
+        stop_moment = min((stop_window) / data['fps'], duration)
 
         # moment = torch.tensor([start_moment, stop_moment])
         # # Generate targets for training ----------------------------------------------
@@ -240,17 +240,27 @@ class MADdataset(torch.utils.data.Dataset):
                        torch.tensor([start_sec, stop_sec]).tolist()).reshape(num_clips,num_clips)
 
 
-
+        # print(data)
+        #
+        # print(data['segment'])
+        #
+        # print(start_idx,stop_idx)
+        # print(num_frames)
+        #
+        # print(start_window)
+        # print(stop_window)
+        #
+        #
         # print(start_window)
         # print(start_moment)
-        # print(data['segment'])
+        #
         # print(s_times)
         # print(e_times)
         # print(overlaps)
         # exit()
-        #
-        #
-        #
+
+
+
 
 
 
@@ -334,7 +344,7 @@ class MADdataset(torch.utils.data.Dataset):
         anno_db = dict()
         for s in [self.split]:
             assert s in anno, 'split does not exist'
-            anno_db.update(anno[s])
+            anno_db.update(anno['train'])
 
         data_list = tuple()
         if self.split == 'train':
@@ -398,7 +408,7 @@ class MADdataset(torch.utils.data.Dataset):
 
                 if 'annotations' in value:
                     for pair in value['annotations']:
-                        if data_list_index >= 1000:
+                        if data_list_index >= 1:
                             break
                         start = max(pair['segment'][0], 0)
                         end = min(pair['segment'][1], duration)
@@ -423,7 +433,7 @@ class MADdataset(torch.utils.data.Dataset):
                         stride = 64
                         #print("Will have %d windows for this window."%(int(num_frames/stride)))
 
-                        num_windows = int(num_frames/stride)
+                        num_windows = int((num_frames-self.window)/stride)
 
                         if int(clip_duration) - self.window + stride <= stride:
                             print('warning:', int(clip_duration), self.window, stride)
@@ -442,7 +452,7 @@ class MADdataset(torch.utils.data.Dataset):
                             {
                             'id'    : key,
                             'fps'   : fps,
-                            "duration": duration,
+                            "duration": 128/5,
                             "sentence": sentence,
                             #"window": [w_start, w_start + self.window],
                             "sentence_id": id,
@@ -451,7 +461,8 @@ class MADdataset(torch.utils.data.Dataset):
                         )
                         data_list_index += 1
             self.dataset_size = data_index -1
-        if self.split != 'train':
-            with open(os.path.join('data', 'MAD', ('mat_' + self.split + '_index.json')), 'w') as f:
-                json.dump(self.query_interval_index, f)
+        #print(data_list)
+        # if self.split != 'train':
+        #     with open(os.path.join('data', 'MAD', ('mat_' + self.split + '_index.json')), 'w') as f:
+        #         json.dump(self.query_interval_index, f)
         return data_list
