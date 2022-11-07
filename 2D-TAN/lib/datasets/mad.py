@@ -129,7 +129,7 @@ class MADdataset(torch.utils.data.Dataset):
             'vis_mask': visual_mask,
             'anno_idx': index,
             'word_vectors': word_vectors,
-            'duration': 128/5,
+            'duration': self.num_pre_clips/5,
             'txt_mask': torch.ones(word_vectors.shape[0], 1),
             'map_gt': overlaps,
         }
@@ -268,7 +268,7 @@ class MADdataset(torch.utils.data.Dataset):
 
         feats = F.normalize(feats, dim=1)
 
-        return feats, torch.from_numpy(overlaps), torch.ones((128, 1))
+        return feats, torch.from_numpy(overlaps), torch.ones((self.num_pre_clips, 1))
 
     def _find_windows_num(self,idx):
         window_offset = 0
@@ -387,7 +387,7 @@ class MADdataset(torch.utils.data.Dataset):
                             {'id': key,
                              'fps': fps,
                              'num_frames': num_frames,
-                             'duration': duration,
+                             'duration': self.num_pre_clips,
                              'sentence': sentence,
                              'segment': (start, end),
                              "sentence_id": id
@@ -408,7 +408,7 @@ class MADdataset(torch.utils.data.Dataset):
 
                 if 'annotations' in value:
                     for pair in value['annotations']:
-                        if data_list_index >= 1:
+                        if data_list_index >= 500:
                             break
                         start = max(pair['segment'][0], 0)
                         end = min(pair['segment'][1], duration)

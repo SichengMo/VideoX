@@ -179,18 +179,21 @@ if __name__ == '__main__':
                     }
                     merge_seg[pair_id] = []
                 #print(idx,window_offset)
-
+                # print("Update!")
                 offset = window_offset*64/5
                 # offset = dat['window'][0]
                 #print(seg)
-                count = 0
-                if idx == 0:
-                    for se in seg:
-                        if not count >= 20:
-                            print(se)
-                        count+=1
+
 
                 merge_seg[pair_id].extend([[se[0] + offset, se[1] + offset, se[2]] for se in seg])
+                # count = 0
+                # if idx == 0 or idx == 1:
+                #     for se in seg:
+                #         if not count >= 20:
+                #             print(se)
+                #             print([se[0] + offset, se[1] + offset, se[2]])
+                #         count+=1
+                #     print("--------------------------")
             # print(merge_seg.keys())
             segments, data = [], []
             for k in merge_seg.keys():
