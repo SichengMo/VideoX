@@ -29,9 +29,9 @@ TRAIN:
   BATCH_SIZE: 32
   LR: 0.0001
   WEIGHT_DECAY: 0.0000
-  MAX_EPOCH: 5
+  MAX_EPOCH: 15
   CONTINUE: False
-  SHUFFLE: False
+  SHUFFLE: True
 
 LOSS:
   NAME: bce_rescale_loss
@@ -79,4 +79,4 @@ TAN:
 
 MODEL:
   NAME: TAN
-  CHECKPOINT: ./checkpoints/MADdataset/TAN_clip/iter017490.pkl
+  CHECKPOINT: ./checkpoints/MADdataset/TAN_clip/iter087450.pkl

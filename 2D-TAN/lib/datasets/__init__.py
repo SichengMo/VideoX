@@ -43,8 +43,8 @@ def average_to_fixed_length(visual_input):
     new_visual_input = torch.stack(new_visual_input, dim=0)
     return new_visual_input
 
-from datasets.activitynet import ActivityNet
-from datasets.charades import Charades
-from datasets.tacos import TACoS
+# from datasets.activitynet import ActivityNet
+# from datasets.charades import Charades
+# from datasets.tacos import TACoS
 from datasets.mad import MADdataset
 from datasets.madtest import MADTestdataset
