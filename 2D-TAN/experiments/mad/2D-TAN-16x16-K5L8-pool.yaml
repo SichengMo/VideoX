@@ -1,4 +1,4 @@
-WORKERS: 16
+WORKERS: 0
 
 MODEL_DIR: ./checkpoints
 RESULT_DIR: ./results
@@ -15,11 +15,11 @@ DATASET:
   RANDOM_SAMPLING: False
 
 TEST:
-  BATCH_SIZE: 32
-  RECALL: 1,5
-  TIOU: 0.1,0.3,0.5,0.7
-  EVAL_TRAIN: True
-  NMS_THRESH: 0.4
+  BATCH_SIZE: 128
+  RECALL: 1,5,10,50,100
+  TIOU: 0.1,0.3,0.5
+  EVAL_TRAIN: False
+  NMS_THRESH: 0.3
 
 CUDNN:
   DETERMINISTIC: False
@@ -29,14 +29,14 @@ TRAIN:
   BATCH_SIZE: 32
   LR: 0.0001
   WEIGHT_DECAY: 0.0000
-  MAX_EPOCH: 100
+  MAX_EPOCH: 5
   CONTINUE: False
 
 LOSS:
   NAME: bce_rescale_loss
   PARAMS:
-    MIN_IOU: 0.3
-    MAX_IOU: 0.7
+    MIN_IOU: 0.5
+    MAX_IOU: 1.0
     BIAS: 0.0
 
 TAN:
@@ -52,7 +52,7 @@ TAN:
   PROP_MODULE:
     NAME: SparsePropMaxPool
     PARAMS:
-      NUM_SCALE_LAYERS: [16,8,8,8]
+      NUM_SCALE_LAYERS: [16]
 
   FUSION_MODULE:
     NAME: BaseFusion
@@ -78,4 +78,4 @@ TAN:
 
 MODEL:
   NAME: TAN
-  CHECKPOINT: ./checkpoints/MADdataset/TAN_clip/iter008750.pkl
+  CHECKPOINT: ./checkpoints/MADdataset/TAN_clip/iter017490.pkl

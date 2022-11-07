@@ -221,6 +221,27 @@ class MADTestdataset(torch.utils.data.Dataset):
         start_moment = max((start_idx - start_window) / data['fps'], 0)
         stop_moment = min((stop_idx - start_window) / data['fps'], duration)
 
+
+        num_clips = config.DATASET.NUM_SAMPLE_CLIPS//config.DATASET.TARGET_STRIDE
+        s_times = torch.arange(0,num_clips).float()*duration/num_clips
+        e_times = torch.arange(1,num_clips+1).float()*duration/num_clips
+        overlaps = iou(torch.stack([s_times[:,None].expand(-1,num_clips),
+                                    e_times[None,:].expand(num_clips,-1)],dim=2).view(-1,2).tolist(),
+                       torch.tensor([gt_s_time, gt_e_time]).tolist()).reshape(num_clips,num_clips)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         moment = torch.tensor([start_moment, stop_moment])
         # Generate targets for training ----------------------------------------------
         iou2d = moment_to_iou2d(moment, self.num_clips, duration)
@@ -316,37 +337,29 @@ class MADTestdataset(torch.utils.data.Dataset):
             anno_db.update(anno[s])
 
         data_list = tuple()
-        if self.split == 'test':
-            for key, value in tqdm(anno_db.items()):
-                fps, num_frames = value['fps'], value['num_frames']
-                duration = num_frames / fps
-                #duration = value['duration']
-                # get sentence-event pairs
-                if 'annotations' in value:
-                    for pair in value['annotations']:
-                        start = max(pair['segment'][0], 0)
-                        end = min(pair['segment'][1], duration)
-                        if start >= end:
-                            continue
-                        # print(pair)
-                        # start = start* 5
-                        # end = end * 5
-
-                        sentence = pair['sentence'].strip().lower()
-                        id = pair['sentence_id']
-
-                        missing = self.check(id)
-                        if missing != None:
-                            self.missing.append(missing)
-                            continue
-                        data_list += (
-                            {'id': key,
-                             'fps': fps,
-                             'num_frames': num_frames,
-                             'duration': duration,
-                             'sentence': sentence,
-                             'segment': (start, end),
-                             "sentence_id": id
-                             },
-                        )
+        for key, value in tqdm(anno_db.items()):
+            fps, num_frames = value['fps'], value['num_frames']
+            duration = num_frames / fps
+            if 'annotations' in value:
+                for pair in value['annotations']:
+                    start = max(pair['segment'][0], 0)
+                    end = min(pair['segment'][1], duration)
+                    if start >= end:
+                        continue
+                    sentence = pair['sentence'].strip().lower()
+                    id = pair['sentence_id']
+                    missing = self.check(id)
+                    if missing != None:
+                        self.missing.append(missing)
+                        continue
+                    data_list += (
+                        {'id': key,
+                         'fps': fps,
+                         'num_frames': num_frames,
+                         'duration': duration,
+                         'sentence': sentence,
+                         'segment': (start, end),
+                         "sentence_id": id
+                         },
+                    )
         return data_list

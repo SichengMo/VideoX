@@ -59,6 +59,9 @@ class TACoS(data.Dataset):
 
         # visual_input = sample_to_fixed_length(visual_input, random_sampling=config.DATASET.RANDOM_SAMPLING)
         visual_input = average_to_fixed_length(visual_input)
+
+
+
         num_clips = config.DATASET.NUM_SAMPLE_CLIPS//config.DATASET.TARGET_STRIDE
         s_times = torch.arange(0,num_clips).float()*duration/num_clips
         e_times = torch.arange(1,num_clips+1).float()*duration/num_clips

@@ -128,16 +128,9 @@ if __name__ == '__main__':
             sorted_scores = np.array([score_cpu[0, int(x[0]),int(x[1])] for x in sorted_indexs])
 
             sorted_indexs[:,1] = sorted_indexs[:,1] + 1
-
-            # print(sorted_indexs[0])
-            # print(sorted_indexs[1])
             sorted_indexs = torch.from_numpy(sorted_indexs).cuda()
-
             target_size = config.DATASET.NUM_SAMPLE_CLIPS // config.DATASET.TARGET_STRIDE
             sorted_time = (sorted_indexs.float() / target_size * duration).tolist()
-            # print(sorted_time[0])
-            # print(sorted_time[1])
-            # exit()
             out_sorted_times.append([[t[0], t[1], s] for t, s in zip(sorted_time, sorted_scores)])
 
         return out_sorted_times
@@ -179,12 +172,11 @@ if __name__ == '__main__':
                     }
                     merge_seg[pair_id] = []
                 #print(idx,window_offset)
-
+                print(merge_seg)
                 offset = window_offset*64/5
                 # offset = dat['window'][0]
                 #print(seg)
                 merge_seg[pair_id].extend([[se[0] + offset, se[1] + offset, se[2]] for se in seg])
-            # print(merge_seg.keys())
             segments, data = [], []
             for k in merge_seg.keys():
                 segments.append(sorted(merge_seg[k], key=lambda x: x[2], reverse=True))

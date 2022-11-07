@@ -6,6 +6,8 @@ import models.prop_modules as prop_modules
 import models.map_modules as map_modules
 import models.fusion_modules as fusion_modules
 
+import time
+
 class TAN(nn.Module):
     def __init__(self):
         super(TAN, self).__init__()
@@ -18,12 +20,27 @@ class TAN(nn.Module):
 
     def forward(self, textual_input, textual_mask, visual_input):
 
+        # start_time = time.time()
+
         vis_h = self.frame_layer(visual_input.transpose(1, 2))
+
+        # end_time = time.time()
+        # print("-----%s seconds ----"%(end_time-start_time))
+        #
+        #
+
         map_h, map_mask = self.prop_layer(vis_h)
+
+
         fused_h = self.fusion_layer(textual_input, textual_mask, map_h, map_mask)
         fused_h = self.map_layer(fused_h, map_mask)
-        prediction = self.pred_layer(fused_h) * map_mask
 
+
+
+        prediction = self.pred_layer(fused_h) * map_mask
+        # end_time1 = time.time()
+        # print("-----%s seconds ----"%(end_time1-end_time))
+        # exit()
         return prediction, map_mask
 
     def extract_features(self, textual_input, textual_mask, visual_input):

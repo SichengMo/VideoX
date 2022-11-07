@@ -1,3 +1,4 @@
+import math
 import os
 import json
 import h5py
@@ -25,6 +26,16 @@ class MADdataset(torch.utils.data.Dataset):
 
     # text centric dataset
     def __init__(self, split):
+
+
+        #########################
+        # cache video araa
+
+        self.cache_videos = {}
+
+
+        ##########################
+
         self.split = split
         print(split)
         data_dir = os.path.join('data', 'MAD')
@@ -118,7 +129,7 @@ class MADdataset(torch.utils.data.Dataset):
             'vis_mask': visual_mask,
             'anno_idx': index,
             'word_vectors': word_vectors,
-            'duration': duration,
+            'duration': 128/5,
             'txt_mask': torch.ones(word_vectors.shape[0], 1),
             'map_gt': overlaps,
         }
@@ -171,19 +182,19 @@ class MADdataset(torch.utils.data.Dataset):
                 break
 
         moive_feature = np.load(video_name)
-        moive_feature = torch.from_numpy(moive_feature)
+        moive_feature = torch.from_numpy(moive_feature) # astype
 
 
 
-        start_idx, stop_idx = data['segment']
-        start_idx = start_idx* data['fps']
-        stop_idx = stop_idx * data['fps']
+        start_sec, stop_sec = data['segment']
+        start_idx = math.ceil(start_sec* data['fps']) #math.ceil
+        stop_idx = math.floor(stop_sec * data['fps'])# math.flow
         num_frames = int(stop_idx - start_idx)
         if num_frames < self.num_pre_clips:
             offset = random.sample(range(0, self.num_pre_clips - num_frames, 1), 1)[0]
         else:
             center = (start_idx + stop_idx) / 2
-            offset = int(round(center / 2))
+            offset = int(round(center / 2)) # keep the setting as orig github repo
 
         # Compute features for window
         start_window = max(int(start_idx) - offset, 0)
@@ -210,17 +221,44 @@ class MADdataset(torch.utils.data.Dataset):
 
         # Compute moment position withint the windo
         duration = self.num_pre_clips / data['fps']
-        start_moment = max((start_idx - start_window) / data['fps'], 0)
-        stop_moment = min((stop_idx - start_window) / data['fps'], duration)
+        start_moment = max((start_idx) / data['fps'], 0)
+        stop_moment = min((stop_idx) / data['fps'], duration)
 
-        moment = torch.tensor([start_moment, stop_moment])
-        # Generate targets for training ----------------------------------------------
-        iou2d = moment_to_iou2d(moment, self.num_clips, duration)
-        # print(iou2d.shape)
+        # moment = torch.tensor([start_moment, stop_moment])
+        # # Generate targets for training ----------------------------------------------
+        # iou2d = moment_to_iou2d(moment, self.num_clips, duration)
+        # # print(iou2d.shape)
+
+
+
+
+        num_clips = config.DATASET.NUM_SAMPLE_CLIPS//config.DATASET.TARGET_STRIDE
+        s_times = torch.arange(0,num_clips).float()*duration/num_clips + start_moment
+        e_times = torch.arange(1,num_clips+1).float()*duration/num_clips + start_moment
+        overlaps = iou(torch.stack([s_times[:,None].expand(-1,num_clips),
+                                    e_times[None,:].expand(num_clips,-1)],dim=2).view(-1,2).tolist(),
+                       torch.tensor([start_sec, stop_sec]).tolist()).reshape(num_clips,num_clips)
+
+
+
+        # print(start_window)
+        # print(start_moment)
+        # print(data['segment'])
+        # print(s_times)
+        # print(e_times)
+        # print(overlaps)
+        # exit()
+        #
+        #
+        #
+
+
+
+
 
         feats = F.normalize(feats, dim=1)
 
-        return feats, iou2d, torch.ones((128, 1))
+        return feats, torch.from_numpy(overlaps), torch.ones((128, 1))
 
     def _find_windows_num(self,idx):
         window_offset = 0
@@ -245,26 +283,27 @@ class MADdataset(torch.utils.data.Dataset):
             iou2d: target matrix
         '''
 
-
         self.input_stride = 1
-        video_name = ''
+        if video_id in self.cache_videos.keys():
+            moive_feature = self.cache_videos[video_id]
+        else:
 
-        # first load the video
-        for name in self.videos:
-            if video_id in name:
-                video_name = name
-                break
 
-        moive_feature = np.load(video_name)
-        moive_feature = torch.from_numpy(moive_feature)
+            video_name = ''
 
+            # first load the video
+            for name in self.videos:
+                if video_id in name:
+                    video_name = name
+                    break
+
+            moive_feature = np.load(video_name)
+            moive_feature = torch.from_numpy(moive_feature)
+            self.cache_videos.update({video_id:moive_feature})
         #window_se = data['window']
         feat_start = int(64*windows_offset)
         feat_end = int(feat_start+128)
-        # print(feat_start)
-        # print(feat_end)
-        # print(moive_feature.shape)
-        # print("________________________________________")
+
         try:
             window_feat = moive_feature[feat_start:feat_end,:]
         except:
@@ -313,8 +352,8 @@ class MADdataset(torch.utils.data.Dataset):
 
                 moive_feature = np.load(video_name)
                 if moive_feature.shape[0] != num_frames:
-                    continue
-
+                    num_frames = moive_feature.shape[0]
+                    duration = num_frames/fps
                 #duration = value['duration']
                 # get sentence-event pairs
                 if 'annotations' in value:
@@ -359,7 +398,7 @@ class MADdataset(torch.utils.data.Dataset):
 
                 if 'annotations' in value:
                     for pair in value['annotations']:
-                        if data_list_index >= 10000:
+                        if data_list_index >= 1000:
                             break
                         start = max(pair['segment'][0], 0)
                         end = min(pair['segment'][1], duration)
