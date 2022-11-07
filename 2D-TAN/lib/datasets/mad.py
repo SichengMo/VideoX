@@ -43,6 +43,7 @@ class MADdataset(torch.utils.data.Dataset):
         self.anno_file = os.path.join(data_dir, 'mad.json')
 
         self.num_pre_clips = config.DATASET.NUM_SAMPLE_CLIPS
+        self.test_stride = self.num_pre_clips/2
         self.target_stride = config.DATASET.TARGET_STRIDE
 
         self.num_clips = int(self.num_pre_clips / self.target_stride)
@@ -276,18 +277,19 @@ class MADdataset(torch.utils.data.Dataset):
             moive_feature = torch.from_numpy(moive_feature)
             self.cache_videos.update({video_id:moive_feature})
         #window_se = data['window']
-        feat_start = int(64*windows_offset)
-        feat_end = int(feat_start+self.num_pre_clips)
 
-        try:
-            window_feat = moive_feature[feat_start:feat_end,:]
-        except:
-            window_feat = moive_feature[feat_start:,:]
-        feat = window_feat
+        if windows_offset == data['num_windows']:
+            feat_end = moive_feature.shape[0]
+            feat_start = feat_end-self.num_pre_clips
+        else:
+            feat_start = int(self.test_stride*windows_offset)
+            feat_end = int(feat_start+self.num_pre_clips)
 
-        feat = F.normalize(feat,dim=1)
+
+        window_feat = moive_feature[feat_start:feat_end,:]
+
+        feat = F.normalize(window_feat,dim=1)
         vis_mask = torch.ones((self.num_pre_clips,1))
-
         iou = torch.zeros(16,16)
 
         return feat,iou,vis_mask
@@ -359,7 +361,15 @@ class MADdataset(torch.utils.data.Dataset):
             query_loop_count = 0
             data_index = 0
             data_list_index = 0
+
+            skip_count = 0
             for key, value in tqdm(anno_db.items()):
+
+                if skip_count >= 58:
+                    continue
+                skip_count += 1
+
+
                 fps, num_frames = value['fps'], value['num_frames']
                 self.input_stride = 1
 
@@ -367,8 +377,8 @@ class MADdataset(torch.utils.data.Dataset):
 
                 if 'annotations' in value:
                     for pair in value['annotations']:
-                        if data_list_index >= 1000:
-                            break
+                        # if data_list_index >= 50:
+                        #     break
                         start = max(pair['segment'][0], 0)
                         end = min(pair['segment'][1], duration)
                         if start >= end:
@@ -386,10 +396,16 @@ class MADdataset(torch.utils.data.Dataset):
                         clip_duration = num_frames
 
                         self.window = self.num_pre_clips
-                        stride = 64
+                        stride = self.num_pre_clips/2
                         #print("Will have %d windows for this window."%(int(num_frames/stride)))
 
-                        num_windows =(num_frames-self.window+stride)//stride
+                        num_windows = int((num_frames-self.window+stride)//stride)
+                        #
+                        # print(num_frames)
+                        #
+                        # print(num_windows)
+
+
 
                         if (num_frames-self.window+stride) % stride !=  0 :
                             num_windows += 1
@@ -409,6 +425,8 @@ class MADdataset(torch.utils.data.Dataset):
                             #"window": [w_start, w_start + self.window],
                             "sentence_id": id,
                             "segment": (start,end),
+                            "num_windows" : num_windows - 1,
+                            "num_frames": num_frames
                         },
                         )
                         data_list_index += 1

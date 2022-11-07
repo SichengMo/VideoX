@@ -161,6 +161,9 @@ if __name__ == '__main__':
 
 
     def post_process(segments, data, verbose=True, merge_window=False, run_eval=True):
+
+        num_sample_clips = int(config.DATASET.NUM_SAMPLE_CLIPS)
+
         if merge_window:
             merge_seg = {}
             merge_data = {}
@@ -172,7 +175,7 @@ if __name__ == '__main__':
                 if pair_id not in merge_seg.keys():  # new
                     merge_data[pair_id] = {
                         'video': dat['id'],
-                        'duration':128/5,
+                        'duration':num_sample_clips/dat['fps'],
                         'segment': [dat['segment'][0],dat['segment'][1]],
                         'sentence': dat['sentence'],
                         #'query_idx': dat['query_idx'],
@@ -180,10 +183,16 @@ if __name__ == '__main__':
                     merge_seg[pair_id] = []
                 #print(idx,window_offset)
                 # print("Update!")
-                offset = window_offset*64/5
-                # offset = dat['window'][0]
-                #print(seg)
 
+                # check if is the last window, if so, stop_index is the last frame in the windows
+
+
+                if window_offset == dat['num_windows']:
+                    print(window_offset)
+                    print(dat['num_windows'])
+                    offset = (dat['num_frames'] - config.DATASET.NUM_SAMPLE_CLIPS)/ dat['fps']
+                else:
+                    offset = window_offset*(config.DATASET.NUM_SAMPLE_CLIPS/2)/dat['fps']
 
                 merge_seg[pair_id].extend([[se[0] + offset, se[1] + offset, se[2]] for se in seg])
                 # count = 0
