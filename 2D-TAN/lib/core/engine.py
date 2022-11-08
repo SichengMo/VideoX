@@ -4,6 +4,11 @@ from .inference import  Cache
 class Engine(object):
     def __init__(self):
         self.hooks = {}
+        self.storage_segs = []
+        self.storage_data = []
+
+
+
 
     def hook(self, name, state):
 
