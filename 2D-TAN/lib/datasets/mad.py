@@ -19,14 +19,13 @@ from core.config import config
 from tqdm import tqdm
 from glob import glob
 
-from transformers import CLIPTokenizer, CLIPModel
-
 
 class MADdataset(torch.utils.data.Dataset):
 
     # text centric dataset
     def __init__(self, split):
 
+        self.sub_test_idx = config.TEST.SUB_TEST_INDEX
         #########################
         # cache video araa
 
@@ -34,12 +33,15 @@ class MADdataset(torch.utils.data.Dataset):
         self.cache_texts = {}
 
         ##########################
-
         self.split = split
         data_dir = os.path.join('data', 'MAD')
         self.vid_feat_dir = os.path.join(data_dir, '5fps_clip1_s1_512d')
         self.text_feat_dir = os.path.join(data_dir, 'token_512d')
-        self.anno_file = os.path.join(data_dir, 'mad.json')
+
+        if self.split == 'test' and self.sub_test_idx != -1:
+            self.anno_file = os.path.join(data_dir, 'sub_test', 'mad_test_{:02d}.json'.format(self.sub_test_idx))
+        else:
+            self.anno_file = os.path.join(data_dir, 'mad.json')
 
         self.num_pre_clips = config.DATASET.NUM_SAMPLE_CLIPS
         self.test_stride = self.num_pre_clips / 2
@@ -47,11 +49,7 @@ class MADdataset(torch.utils.data.Dataset):
 
         self.num_clips = int(self.num_pre_clips / self.target_stride)
 
-        self.videos = glob(os.path.join(self.vid_feat_dir, ('*.npy')))
-        self.videos = [video for video in self.videos]
-
         cache_file = os.path.join(data_dir, (split + '.json'))
-        self.missing = []
 
         index_file = os.path.join('data', 'MAD', ('mat_' + self.split + '_index.json'))
 
@@ -80,50 +78,36 @@ class MADdataset(torch.utils.data.Dataset):
         for each in sorted(self.missing):
             print(each)
 
-        missing = {'missing': sorted(self.missing)}
-        with open(os.path.join(data_dir, ('mad_' + self.split + '_missing' + '.json')), 'w') as f:
-            json.dump(missing, f)
-
-        # print(self.videos)
         print(self.__len__())
         self.annotations = self.data_list
 
     def __getitem__(self, idx):
 
-        if not self.split == 'test':
+        if self.split == 'train':
             data = self.data_list[idx]
+            sentence_id = data['sentence_id']
+            sentence = data['sentence']
+            video_id = data['id']
+            visual_feat, overlaps, visual_mask = self._get_video_features_train(video_id, data)
         else:
             window_offset, real_data_index = self._find_windows_num(idx)
             data = self.data_list[real_data_index]
+            sentence_id = data['sentence_id']
+            sentence = data['sentence']
+            video_id = data['id']
+            visual_feat, overlaps, visual_mask = self._get_video_features_test(video_id, data, window_offset)
 
-        sentence_id = data['sentence_id']
-        sentence = data['sentence']
-        duration = data['duration']
-        video_id = data['id']
+        word_vector = self._get_language_feature(sentence_id, sentence)
 
-        if self.split == 'train':
-            feat, iou2d, visual_mask = self._get_video_features_train(video_id, data)
-        else:
-            # not working now
-            feat, iou2d, visual_mask = self._get_video_features_test(video_id, data, window_offset)
-
-        feat = average_to_fixed_length(feat)
-
-        word_vectors = self._get_language_feature(sentence_id, sentence)
-        index = idx
-
-        visual_input = feat
-        overlaps = iou2d
         item = {
-            'visual_input': visual_input,
+            'visual_input': visual_feat,
             'vis_mask': visual_mask,
-            'anno_idx': index,
-            'word_vectors': word_vectors,
+            'anno_idx': idx,
+            'word_vectors': word_vector,
             'duration': self.num_pre_clips / 5,
-            'txt_mask': torch.ones(word_vectors.shape[0], 1),
+            'txt_mask': torch.ones(word_vector.shape[0], 1),
             'map_gt': overlaps,
         }
-        # print(visual_input.shape)
         return item
 
     def __len__(self):
@@ -167,15 +151,10 @@ class MADdataset(torch.utils.data.Dataset):
         '''
 
         self.input_stride = 1
-        video_name = ''
 
-        # first load the video
-        for name in self.videos:
-            if video_id in name:
-                video_name = name
-                break
+        video_name = video_id + ".npy"
 
-        movie_feature = np.load(video_name)
+        movie_feature = np.load(os.path.join(self.vid_feat_dir, video_name))
         movie_feature = torch.from_numpy(movie_feature.astype(np.float32))
 
         start_sec, stop_sec = data['segment']
@@ -251,34 +230,27 @@ class MADdataset(torch.utils.data.Dataset):
 
         self.input_stride = 1
         if video_id in self.cache_videos.keys():
-            moive_feature = self.cache_videos[video_id]
+            move_feature = self.cache_videos[video_id]
             keys = list(self.cache_videos.keys())
             if len(keys) >= 3:
                 for key in keys:
                     self.cache_videos.pop(key)
         else:
 
-            video_name = ''
+            video_name = video_id + ".npy"
+            move_feature = np.load(os.path.join(self.vid_feat_dir, video_name))
+            move_feature = torch.from_numpy(move_feature)
+            self.cache_videos.update({video_id: move_feature})
 
-            # first load the video
-            for name in self.videos:
-                if video_id in name:
-                    video_name = name
-                    break
-
-            moive_feature = np.load(video_name)
-            moive_feature = torch.from_numpy(moive_feature)
-            self.cache_videos.update({video_id: moive_feature})
-        # window_se = data['window']
 
         if windows_offset == data['num_windows']:
-            feat_end = moive_feature.shape[0]
+            feat_end = move_feature.shape[0]
             feat_start = feat_end - self.num_pre_clips
         else:
             feat_start = int(self.test_stride * windows_offset)
             feat_end = int(feat_start + self.num_pre_clips)
 
-        window_feat = moive_feature[feat_start:feat_end, :]
+        window_feat = move_feature[feat_start:feat_end, :]
 
         feat = F.normalize(window_feat, dim=1)
         vis_mask = torch.ones((self.num_pre_clips, 1))
@@ -295,7 +267,6 @@ class MADdataset(torch.utils.data.Dataset):
             return None
 
     def _load_annotation(self):
-        self.missing = []
         self.query_interval_index = {}
         with open(self.anno_file, 'r') as f:
             anno = json.load(f)
@@ -310,36 +281,14 @@ class MADdataset(torch.utils.data.Dataset):
         if self.split == 'train':
             for key, value in tqdm(anno_db.items()):
                 fps, num_frames = value['fps'], value['num_frames']
-                duration = num_frames / fps
-
-                video_name = ''
-
-                # first load the video
-                for name in self.videos:
-                    if key in name:
-                        video_name = name
-                        break
-
-                moive_feature = np.load(video_name)
-                if moive_feature.shape[0] != num_frames:
-                    num_frames = moive_feature.shape[0]
-                    duration = num_frames / fps
-                # duration = value['duration']
-                # get sentence-event pairs
                 if 'annotations' in value:
                     for pair in value['annotations']:
                         start = max(pair['segment'][0], 0)
-                        end = min(pair['segment'][1], duration)
+                        end = min(pair['segment'][1], num_frames / fps)
                         if start >= end:
                             continue
-
                         sentence = pair['sentence'].strip().lower()
-                        id = pair['sentence_id']
-
-                        missing = self.check(id)
-                        if missing != None:
-                            self.missing.append(missing)
-                            continue
+                        sentence_id = pair['sentence_id']
                         data_list += (
                             {'id': key,
                              'fps': fps,
@@ -347,20 +296,13 @@ class MADdataset(torch.utils.data.Dataset):
                              'duration': self.num_pre_clips / fps,
                              'sentence': sentence,
                              'segment': (start, end),
-                             "sentence_id": id
+                             "sentence_id": sentence_id
                              },
                         )
         else:
-            query_loop_count = 0
             data_index = 0
             data_list_index = 0
-
-            skip_count = 0
             for key, value in tqdm(anno_db.items()):
-
-                # if skip_count >= 100:
-                #     continue
-                skip_count += 1
 
                 fps, num_frames = value['fps'], value['num_frames']
                 self.input_stride = 1
@@ -368,46 +310,26 @@ class MADdataset(torch.utils.data.Dataset):
                 duration = num_frames / fps
 
                 if 'annotations' in value:
-                    query_under_this_video = 0
-
                     for pair in value['annotations']:
-
-                        if not random.choice([True, False]) or query_under_this_video > 2:
-                            break
-                        if data_list_index >= 50:
-                            break
                         start = max(pair['segment'][0], 0)
                         end = min(pair['segment'][1], duration)
-                        if start >= end:
-                            continue
 
                         sentence = pair['sentence'].strip().lower()
-                        id = pair['sentence_id']
-                        query_loop_count += 1
-
-                        missing = self.check(id)
-                        if missing != None:
-                            self.missing.append(missing)
-                            continue
-                        clip_duration = num_frames
+                        sentence_id = pair['sentence_id']
 
                         self.window = self.num_pre_clips
                         stride = self.num_pre_clips / 2
-                        # print("Will have %d windows for this window."%(int(num_frames/stride)))
 
                         num_windows = int((num_frames - self.window + stride) // stride)
-                        #
-                        # print(num_frames)
-                        #
-                        # print(num_windows)
 
                         if (num_frames - self.window + stride) % stride != 0:
                             num_windows += 1
 
-                        if int(clip_duration) - self.window + stride <= stride:
-                            print('warning:', int(clip_duration), self.window, stride)
+                        if int(num_frames) - self.window + stride <= stride:
+                            print('warning:', int(num_frames), self.window, stride)
 
-                        self.query_interval_index.update({id: (data_index, data_index + num_windows, data_list_index)})
+                        self.query_interval_index.update(
+                            {sentence_id: (data_index, data_index + num_windows, data_list_index)})
 
                         data_index += num_windows
                         data_list += (
@@ -416,14 +338,12 @@ class MADdataset(torch.utils.data.Dataset):
                                 'fps': fps,
                                 "duration": config.DATASET.NUM_SAMPLE_CLIPS / fps,
                                 "sentence": sentence,
-                                # "window": [w_start, w_start + self.window],
-                                "sentence_id": id,
+                                "sentence_id": sentence_id,
                                 "segment": (start, end),
                                 "num_windows": num_windows - 1,
                                 "num_frames": num_frames
                             },
                         )
-                        query_under_this_video += 1
                         data_list_index += 1
             self.dataset_size = data_index
         return data_list

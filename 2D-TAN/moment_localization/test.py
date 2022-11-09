@@ -39,6 +39,8 @@ def parse_args():
     parser.add_argument('--logDir', help='log path', type=str)
     parser.add_argument('--split', default='val', required=True, choices=['train', 'val', 'test'], type=str)
     parser.add_argument('--verbose', default=False, action="store_true", help='print progress bar')
+    parser.add_argument('--test_idx', help='index of subtests', type=int,default=-1)
+    parser.add_argument('--chuck_size', help='size of chuck', type=int,default=-1)
     args = parser.parse_args()
 
     return args
@@ -71,6 +73,9 @@ def save_scores(scores, data, dataset_name, split):
 if __name__ == '__main__':
     args = parse_args()
     reset_config(config, args)
+
+    config.TEST.SUB_TEST_INDEX = args.test_idx
+    config.TEST.CHUCK_SIZE = args.chuck_size
 
     device = ("cuda" if torch.cuda.is_available() else "cpu")
     model = getattr(models, config.MODEL.NAME)()
@@ -155,7 +160,7 @@ if __name__ == '__main__':
         state['sorted_segments_list'] = []
         state['output'] = []
         if config.VERBOSE:
-            state['progress_bar'] = tqdm(total=math.ceil(len(test_dataset) / config.TRAIN.BATCH_SIZE))
+            state['progress_bar'] = tqdm(total=math.ceil(len(test_dataset) / config.TEST.BATCH_SIZE))
 
 
     def on_test_forward(state):

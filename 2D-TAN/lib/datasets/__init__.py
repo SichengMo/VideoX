@@ -48,3 +48,4 @@ def average_to_fixed_length(visual_input):
 # from datasets.tacos import TACoS
 from datasets.mad import MADdataset
 from datasets.madtest import MADTestdataset
+from datasets.mad_clip import MADClipdataset
