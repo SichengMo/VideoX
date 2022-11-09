@@ -76,6 +76,7 @@ if __name__ == '__main__':
 
     config.TEST.SUB_TEST_INDEX = args.test_idx
     config.TEST.CHUCK_SIZE = args.chuck_size
+    config.DATASET.NAME = 'MADClipdataset'
 
     device = ("cuda" if torch.cuda.is_available() else "cpu")
     model = getattr(models, config.MODEL.NAME)()

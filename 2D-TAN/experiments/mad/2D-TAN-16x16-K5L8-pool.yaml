@@ -6,11 +6,11 @@ LOG_DIR: ./log
 DATA_DIR: ./data/MAD
 
 DATASET:
-  NAME: MADClipdataset
+  NAME: MADdataset
   VIS_INPUT_TYPE: clip
   NO_VAL: True
   NUM_SAMPLE_CLIPS: 128
-  TARGET_STRIDE: 8
+  TARGET_STRIDE: 4
   NORMALIZE: True
   RANDOM_SAMPLING: False
 

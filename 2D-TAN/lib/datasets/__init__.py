@@ -49,3 +49,4 @@ def average_to_fixed_length(visual_input):
 from datasets.mad import MADdataset
 from datasets.madtest import MADTestdataset
 from datasets.mad_clip import MADClipdataset
+from datasets.mad_orig import MADOrigdataset

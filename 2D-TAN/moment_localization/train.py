@@ -82,11 +82,11 @@ if __name__ == '__main__':
     model_name = config.MODEL.NAME
 
     train_dataset = getattr(datasets, dataset_name)('train')
-    if config.TEST.EVAL_TRAIN:
-        eval_train_dataset = getattr(datasets, dataset_name)('train')
-    if not config.DATASET.NO_VAL:
-        val_dataset = getattr(datasets, dataset_name)('val')
-    test_dataset = getattr(datasets, dataset_name)('test')
+    # if config.TEST.EVAL_TRAIN:
+    #     eval_train_dataset = getattr(datasets, dataset_name)('train')
+    # if not config.DATASET.NO_VAL:
+    #     val_dataset = getattr(datasets, dataset_name)('val')
+    # test_dataset = getattr(datasets, dataset_name)('test')
 
     model = getattr(models, model_name)()
     if config.MODEL.CHECKPOINT and config.TRAIN.CONTINUE:
@@ -111,27 +111,27 @@ if __name__ == '__main__':
                                     num_workers=config.WORKERS,
                                     pin_memory=False,
                                     collate_fn=datasets.collate_fn)
-        elif split == 'val':
-            dataloader = DataLoader(val_dataset,
-                                    batch_size=config.TEST.BATCH_SIZE,
-                                    shuffle=False,
-                                    num_workers=config.WORKERS,
-                                    pin_memory=False,
-                                    collate_fn=datasets.collate_fn)
-        elif split == 'test':
-            dataloader = DataLoader(test_dataset,
-                                    batch_size=config.TEST.BATCH_SIZE,
-                                    shuffle=False,
-                                    num_workers=config.WORKERS,
-                                    pin_memory=False,
-                                    collate_fn=datasets.collate_fn)
-        elif split == 'train_no_shuffle':
-            dataloader = DataLoader(eval_train_dataset,
-                                    batch_size=config.TEST.BATCH_SIZE,
-                                    shuffle=False,
-                                    num_workers=config.WORKERS,
-                                    pin_memory=False,
-                                    collate_fn=datasets.collate_fn)
+        # elif split == 'val':
+        #     dataloader = DataLoader(val_dataset,
+        #                             batch_size=config.TEST.BATCH_SIZE,
+        #                             shuffle=False,
+        #                             num_workers=config.WORKERS,
+        #                             pin_memory=False,
+        #                             collate_fn=datasets.collate_fn)
+        # elif split == 'test':
+        #     dataloader = DataLoader(test_dataset,
+        #                             batch_size=config.TEST.BATCH_SIZE,
+        #                             shuffle=False,
+        #                             num_workers=config.WORKERS,
+        #                             pin_memory=False,
+        #                             collate_fn=datasets.collate_fn)
+        # elif split == 'train_no_shuffle':
+        #     dataloader = DataLoader(eval_train_dataset,
+        #                             batch_size=config.TEST.BATCH_SIZE,
+        #                             shuffle=False,
+        #                             num_workers=config.WORKERS,
+        #                             pin_memory=False,
+        #                             collate_fn=datasets.collate_fn)
         else:
             raise NotImplementedError
 

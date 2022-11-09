@@ -20,7 +20,7 @@ from tqdm import tqdm
 from glob import glob
 
 
-class MADdataset(torch.utils.data.Dataset):
+class MADOrigdataset(torch.utils.data.Dataset):
 
     # text centric dataset
     def __init__(self, split):
@@ -37,6 +37,17 @@ class MADdataset(torch.utils.data.Dataset):
         data_dir = os.path.join('data', 'MAD')
         self.vid_feat_dir = os.path.join(data_dir, '5fps_clip1_s1_512d')
         self.text_feat_dir = os.path.join(data_dir, 'token_512d')
+        data_orig_folder = os.path.join('data', 'MAD', 'orig')
+
+        self.anno_file_path = {
+            'train': os.path.join(data_orig_folder, 'MAD_train.json'),
+            'val': os.path.join(data_orig_folder, "MAD_val.json"),
+            "test": os.path.join(data_orig_folder, "MAD_test.json")
+
+        }
+
+        self.video_feat_all = os.path.join(data_orig_folder, 'CLIP_frames_features_5fps.h5')
+        self.text_feat_all = os.path.join(data_orig_folder, 'CLIP_language_tokens_features-002.h5')
 
         if self.split == 'test' and self.sub_test_idx != -1:
             self.anno_file = os.path.join(data_dir, 'sub_test', 'mad_test_{:02d}.json'.format(self.sub_test_idx))
@@ -49,7 +60,7 @@ class MADdataset(torch.utils.data.Dataset):
 
         self.num_clips = int(self.num_pre_clips / self.target_stride)
 
-        cache_file = os.path.join(data_dir, (split + '.json'))
+        cache_file = os.path.join(data_dir, (split + '_orig.json'))
 
         index_file = os.path.join('data', 'MAD', ('mat_' + self.split + '_index.json'))
 
@@ -77,6 +88,18 @@ class MADdataset(torch.utils.data.Dataset):
 
         print(self.__len__())
         self.annotations = self.data_list
+        self.movies = {a['id']: a['movie_duration'] for a in self.annotations}
+        self.feats = movie2feats(self.video_feat_all, self.movies.keys())
+
+
+
+
+        #self.text_feats = {}
+        with h5py.File(self.text_feat_all, 'r') as f:
+            self.text_feats = {a['sentence_id']: torch.from_numpy(f[a['sentence_id']][:].astype(np.float32)) for a in self.annotations}
+            # for a in self.annotations:
+            #     print(self.text_feats[a['sentence_id']].shape)
+
 
     def __getitem__(self, idx):
 
@@ -124,21 +147,23 @@ class MADdataset(torch.utils.data.Dataset):
             text_feature: clip text feature
         '''
 
-        path = os.path.join(self.text_feat_dir, ("{:06d}".format(int(sentence_id)) + ".npy"))
+        # path = os.path.join(self.text_feat_dir, ("{:06d}".format(int(sentence_id)) + ".npy"))
+        #
+        # if path in self.cache_texts.keys():
+        #     text_feature = self.cache_texts[path]
+        # else:
+        #     text_feature = np.load(path)
+        #     text_feature = torch.from_numpy(text_feature.astype(np.float32).transpose(0, 1))
+        #     self.cache_texts.update({path: text_feature})
 
-        if path in self.cache_texts.keys():
-            text_feature = self.cache_texts[path]
-        else:
-            text_feature = np.load(path)
-            text_feature = torch.from_numpy(text_feature.astype(np.float32).transpose(0, 1))
-            self.cache_texts.update({path: text_feature})
+        text_feature = self.text_feats[sentence_id]
 
         return text_feature
 
     def _get_video_features_train(self, video_id, data):
         '''
             INPUTS:
-            video_id: id of the video 
+            video_id: id of the video
             data: annotation data, contains all the preprocessed information
 
 
@@ -149,10 +174,7 @@ class MADdataset(torch.utils.data.Dataset):
 
         self.input_stride = 1
 
-        video_name = video_id + ".npy"
-
-        movie_feature = np.load(os.path.join(self.vid_feat_dir, video_name))
-        movie_feature = torch.from_numpy(movie_feature.astype(np.float32))
+        movie_feature = self.feats[video_id]
 
         start_sec, stop_sec = data['segment']
         start_idx = math.ceil(start_sec * data['fps'])
@@ -239,7 +261,6 @@ class MADdataset(torch.utils.data.Dataset):
             move_feature = torch.from_numpy(move_feature)
             self.cache_videos.update({video_id: move_feature})
 
-
         if windows_offset == data['num_windows']:
             feat_end = move_feature.shape[0]
             feat_start = feat_end - self.num_pre_clips
@@ -265,38 +286,38 @@ class MADdataset(torch.utils.data.Dataset):
 
     def _load_annotation(self):
         self.query_interval_index = {}
+
+        self.anno_file = self.anno_file_path[self.split]
+
         with open(self.anno_file, 'r') as f:
             anno = json.load(f)
 
-        # combine data from all splits
-        anno_db = dict()
-        for s in [self.split]:
-            assert s in anno, 'split does not exist'
-            anno_db.update(anno[s])
-
         data_list = tuple()
         if self.split == 'train':
-            for key, value in tqdm(anno_db.items()):
-                fps, num_frames = value['fps'], value['num_frames']
-                if 'annotations' in value:
-                    for pair in value['annotations']:
-                        start = max(pair['segment'][0], 0)
-                        end = min(pair['segment'][1], num_frames / fps)
-                        if start >= end:
-                            continue
-                        sentence = pair['sentence'].strip().lower()
-                        sentence_id = pair['sentence_id']
-                        data_list += (
-                            {'id': key,
-                             'fps': fps,
-                             'num_frames': num_frames,
-                             'duration': self.num_pre_clips / fps,
-                             'sentence': sentence,
-                             'segment': (start, end),
-                             "sentence_id": sentence_id
-                             },
-                        )
+            for key, value in tqdm(anno.items()):
+                fps = 5
+                movie_duration = value["movie_duration"]
+                video_id = value['movie']
+                num_frames = movie_duration * fps
+
+                start = max(value['ext_timestamps'][0], 0)
+                end = min(value['ext_timestamps'][1], movie_duration)
+                if start >= end:
+                    continue
+                sentence = value['sentence']
+                data_list += (
+                    {'id': video_id,
+                     'fps': fps,
+                     'num_frames': num_frames,
+                     'duration': self.num_pre_clips / fps,
+                     'sentence': sentence,
+                     'segment': (start, end),
+                     "sentence_id": key,
+                     'movie_duration':  movie_duration
+                     },
+                )
         else:
+            return data_list
             data_index = 0
             data_list_index = 0
             for key, value in tqdm(anno_db.items()):
