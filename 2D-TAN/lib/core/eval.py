@@ -69,6 +69,9 @@ def eval(segments, data):
         for i,t in enumerate(tious):
             for j,r in enumerate(recalls):
                 eval_result[i][j].append((overlap > t)[:r].any())
+    if config.TEST.OUTPATH != '':
+        np.save(config.TEST.OUTPATH,eval_result)
+        print("SAVED AT %s" % config.TEST.OUTPATH)
     eval_result = np.array(eval_result).mean(axis=-1)
     miou = np.mean(average_iou)
 

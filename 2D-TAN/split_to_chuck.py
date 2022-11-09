@@ -82,14 +82,14 @@ def write_json(path, content):
         json.dump(content, f)
 
 def create_chuck(window_length):
-    num_split = 16
+    num_split = 80
     #window_length = 3600
     sub_chunk_size = window_length * 5
 
-    path_to_sub_test_orig = os.path.join('data', 'MAD', 'sub_test')
+    path_to_sub_test_orig = os.path.join('data', 'MAD', 'sub_test_train')
     video_path = os.path.join('data', 'MAD', '5ps_clip1_s1_512d')
 
-    output_folder = os.path.join('data', 'MAD', 'chuck_{:04d}'.format(window_length))
+    output_folder = os.path.join('data', 'MAD', 'train_chuck_{:04d}'.format(window_length))
     os.makedirs(output_folder, exist_ok=True)
 
     for i in tqdm(range(num_split)):
@@ -168,6 +168,7 @@ def create_chuck(window_length):
         write_json(output_file_path, new_test)
 
 if __name__ == '__main__':
-    sizes = [30,60,120,180,600,1200,1800,3600]
+    #sizes = [30,60,120,180,600,1200,1800,3600]
+    sizes = [30]
     for size in sizes:
         create_chuck(size)

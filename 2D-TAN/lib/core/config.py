@@ -84,7 +84,7 @@ config.TEST.TOP_K = 10
 # added config
 config.TEST.SUB_TEST_INDEX = -1
 config.TEST.CHUCK_SIZE = -1
-
+config.TEST.OUTPATH = ''
 def _update_dict(cfg, value):
     for k, v in value.items():
         if k in cfg:

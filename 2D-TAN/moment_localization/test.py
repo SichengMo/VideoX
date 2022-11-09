@@ -39,8 +39,8 @@ def parse_args():
     parser.add_argument('--logDir', help='log path', type=str)
     parser.add_argument('--split', default='val', required=True, choices=['train', 'val', 'test'], type=str)
     parser.add_argument('--verbose', default=False, action="store_true", help='print progress bar')
-    parser.add_argument('--test_idx', help='index of subtests', type=int,default=-1)
-    parser.add_argument('--chuck_size', help='size of chuck', type=int,default=-1)
+    parser.add_argument('--test_idx', help='index of subtests', type=int, default=-1)
+    parser.add_argument('--chuck_size', help='size of chuck', type=int, default=-1)
     args = parser.parse_args()
 
     return args
@@ -172,7 +172,8 @@ if __name__ == '__main__':
         batch_indexs = [idx - min_idx for idx in state['sample']['batch_anno_idxs']]
         sorted_segments = [state['output'][i] for i in batch_indexs]
         state['sorted_segments_list'].extend(sorted_segments)
-        state['sorted_segments_list'] = _on_update_process(engine,state['sorted_segments_list'])
+        state['sorted_segments_list'] = _on_update_process(engine, state['sorted_segments_list'])
+
 
     def _on_update_process(engine, segments, data=None, verbose=True, merge_window=False, run_eval=False):
 
@@ -187,9 +188,14 @@ if __name__ == '__main__':
         for seg, idx in zip(segments, idxs):
             if len(seg) == 0:
                 continue
-            window_offset, real_data_index = test_dataset._find_windows_num(idx)
+
+            dat = data[idx]
+            window_offset = dat['window'][0]
             if window_offset == 0 or (updated_start_idx and idx <= end_idx):
-                dat = data[real_data_index]
+                # dat = data[real_data_index]
+
+                # print(window_offset)
+                # print(idx)
 
                 if window_offset == 0:
                     start_idx = idx
@@ -203,22 +209,21 @@ if __name__ == '__main__':
                 temp_buffer.append({
                     'seg': seg,
                     'window_offset': window_offset,
-                    'num_windows': dat['num_windows'],
-                    'num_frames': dat['num_frames'],
+
                 })
 
                 if idx == end_idx:
+                    assert dat['last_window'] == True
                     merge_seg = []
                     # start merge all the temp segments
 
                     for buffered_seg in temp_buffer:
-
-                        if buffered_seg['window_offset'] == buffered_seg['num_windows']:
-                            offset = (buffered_seg['num_frames'] - config.DATASET.NUM_SAMPLE_CLIPS) / dat['fps']
-                        else:
-                            offset = buffered_seg['window_offset']  * (config.DATASET.NUM_SAMPLE_CLIPS / 2) / dat['fps']
+                        offset = buffered_seg['window_offset'] / dat['fps']
+                        # if buffered_seg['window_offset'] == buffered_seg['num_windows']:
+                        #     offset = (buffered_seg['num_frames'] - config.DATASET.NUM_SAMPLE_CLIPS) / dat['fps']
+                        # else:
+                        #     offset = buffered_seg['window_offset']  * (config.DATASET.NUM_SAMPLE_CLIPS / 2) / dat['fps']
                         # print(idx,buffered_seg['window_offset'],offset)
-
 
                         merge_seg.extend([[se[0] + offset, se[1] + offset, se[2]] for se in buffered_seg['seg']])
 
@@ -229,9 +234,9 @@ if __name__ == '__main__':
                     # for each in video_segments:
                     #     print(each)
 
-                    video_query_data =  {
+                    video_query_data = {
                         'video': dat['id'],
-                        'duration': config.DATASET.NUM_SAMPLE_CLIPS/ dat['fps'],
+                        'duration': config.DATASET.NUM_SAMPLE_CLIPS / dat['fps'],
                         'segment': [dat['segment'][0], dat['segment'][1]],
                         'sentence': dat['sentence'],
                         # 'query_idx': dat['query_idx'],
@@ -242,22 +247,11 @@ if __name__ == '__main__':
                     updated_start_idx = False
                 segments[idx] = []
 
-
-
-
-
-
-
-
-
-
-
             #
             # else:
             #     return segments
-        #print(segments)
+        # print(segments)
         return segments
-
 
 
     def post_process(engine, segments, data, verbose=True, merge_window=False, run_eval=True):
@@ -333,6 +327,7 @@ if __name__ == '__main__':
         print(table_message)
 
         # save_scores(state['sorted_segments_list'], annotations, config.DATASET.NAME, args.split)
+
 
     global engine
     engine = Engine()

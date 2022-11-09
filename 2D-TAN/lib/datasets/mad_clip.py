@@ -30,9 +30,14 @@ class MADClipdataset(torch.utils.data.Dataset):
         self.chunk_size = config.TEST.CHUCK_SIZE
 
         # get the annotation file name
-        anno_file_name = os.path.join(data_dir, ('chuck_{:04d}'.format(self.chunk_size)),
+        anno_file_name = os.path.join(data_dir, ('train_chuck_{:04d}'.format(self.chunk_size)),
                                       ('mad_test_{:02d}.json'.format(self.sub_test_idx)))
+        config.TEST.OUTPATH = os.path.join(data_dir, ('train_chuck_{:04d}'.format(self.chunk_size)),
+                                           'out')
+        os.makedirs(config.TEST.OUTPATH, exist_ok=True)
 
+        config.TEST.OUTPATH = os.path.join(data_dir, ('train_chuck_{:04d}'.format(self.chunk_size)),
+                                           'out', ('mad_test_{:02d}.npy'.format(self.sub_test_idx)))
         # print(self.sub_test_idx)
 
         #########################
@@ -103,12 +108,7 @@ class MADClipdataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
 
-        if not self.split == 'test':
-            data = self.data_list[idx]
-        else:
-            window_offset, real_data_index = self._find_windows_num(idx)
-            data = self.data_list[real_data_index]
-
+        data = self.data_list[idx]
         sentence_id = data['sentence_id']
         sentence = data['sentence']
         duration = data['duration']
@@ -117,10 +117,7 @@ class MADClipdataset(torch.utils.data.Dataset):
         if self.split == 'train':
             feat, iou2d, visual_mask = self._get_video_features_train(video_id, data)
         else:
-            # not working now
-            feat, iou2d, visual_mask = self._get_video_features_test(video_id, data, window_offset)
-
-        feat = average_to_fixed_length(feat)
+            feat, iou2d, visual_mask = self._get_video_features_test(video_id, data)
 
         word_vectors = self._get_language_feature(sentence_id, sentence)
         index = idx
@@ -140,9 +137,6 @@ class MADClipdataset(torch.utils.data.Dataset):
         return item
 
     def __len__(self):
-        if self.split == 'test':
-            return self.dataset_size
-
         return len(self.data_list)
 
     def _get_language_feature(self, sentence_id, sentence):
@@ -230,28 +224,7 @@ class MADClipdataset(torch.utils.data.Dataset):
 
         return feats, torch.from_numpy(overlaps), torch.ones((self.num_pre_clips, 1))
 
-    def _find_windows_num(self, idx):
-        '''
-            INPUTS:
-            idx: idx pass into dataloader
-
-
-            OUTPUTS:
-            window_offset： window offset for current data point
-            data_list_index : index for this data in self.anno_list
-        '''
-        window_offset = 0
-        data_list_index = 0
-        for key in self.query_interval_index.keys():
-            window = self.query_interval_index[key]
-            if window[0] <= idx < window[1]:
-                # print(window,idx)
-                window_offset = idx - window[0]
-                data_list_index = window[2]
-                break
-        return window_offset, data_list_index
-
-    def _get_video_features_test(self, video_id, data, windows_offset):
+    def _get_video_features_test(self, video_id, data):
         '''
             INPUTS:
             anno: annotation data, contains all the preprocessed information
@@ -271,23 +244,19 @@ class MADClipdataset(torch.utils.data.Dataset):
                     self.cache_videos.pop(key)
         else:
 
-            video_name = video_id+".npy"
+            video_name = video_id + ".npy"
             moive_feature = np.load(os.path.join(self.vid_feat_dir, video_name))
             moive_feature = torch.from_numpy(moive_feature)
             self.cache_videos.update({video_id: moive_feature})
 
         window_from_orig = data['window_from_orig']
-        moive_feature = moive_feature[window_from_orig[0]:window_from_orig[1],:]
+        moive_feature = moive_feature[window_from_orig[0]:window_from_orig[1], :]
         # window_se = data['window']
 
-        if windows_offset == data['num_windows']:
-            feat_end = moive_feature.shape[0]
-            feat_start = feat_end - self.num_pre_clips
-        else:
-            feat_start = int(self.test_stride * windows_offset)
-            feat_end = int(feat_start + self.num_pre_clips)
+        w_start = data['window'][0]
+        w_end = data['window'][1]
 
-        window_feat = moive_feature[feat_start:feat_end, :]
+        window_feat = moive_feature[w_start:w_end, :]
 
         feat = F.normalize(window_feat, dim=1)
         vis_mask = torch.ones((self.num_pre_clips, 1))
@@ -295,13 +264,6 @@ class MADClipdataset(torch.utils.data.Dataset):
         iou = torch.zeros(self.num_clips, self.num_clips)
 
         return feat, iou, vis_mask
-
-    def check(self, sentence_id):
-        path = os.path.join(self.text_feat_dir, ("{:06d}".format(int(sentence_id)) + ".npy"))
-        if not os.path.exists(path):
-            return sentence_id
-        else:
-            return None
 
     def _load_annotation(self):
         self.missing = []
@@ -320,9 +282,6 @@ class MADClipdataset(torch.utils.data.Dataset):
             # do nothing here
             _ = 0
         else:
-            data_index = 0
-            data_list_index = 0
-
             for key, value in tqdm(anno_db.items()):
                 fps, num_frames = value['fps'], value['num_frames']
                 self.input_stride = 1
@@ -331,7 +290,6 @@ class MADClipdataset(torch.utils.data.Dataset):
                 duration = num_frames / fps
 
                 if 'annotations' in value:
-                    query_under_this_video = 0
                     window_from_orig = value['window']
 
                     for pair in value['annotations']:
@@ -353,24 +311,45 @@ class MADClipdataset(torch.utils.data.Dataset):
                         if int(clip_duration) - self.window + stride <= stride:
                             print('warning:', int(clip_duration), self.window, stride)
 
-                        self.query_interval_index.update({id: (data_index, data_index + num_windows, data_list_index)})
-
-                        data_index += num_windows
-                        data_list += (
-                            {
-                                'id': video_id,
-                                'fps': fps,
-                                "duration": config.DATASET.NUM_SAMPLE_CLIPS / fps,
-                                "sentence": sentence,
-                                # "window": [w_start, w_start + self.window],
-                                "sentence_id": id,
-                                "segment": (start, end),
-                                "num_windows": num_windows - 1,
-                                "num_frames": num_frames,
-                                "window_from_orig": (window_from_orig[0], window_from_orig[1])
-                            },
-                        )
-                        query_under_this_video += 1
-                        data_list_index += 1
-            self.dataset_size = data_index
+                        for i in range(num_windows):
+                            w_start = stride * i
+                            w_end = w_start + self.window
+                            if w_end >= num_frames:
+                                w_end = num_frames
+                                w_start = num_frames - self.window
+                                w_end = int(w_end)
+                                w_start = int(w_start)
+                                data_list += (
+                                    {
+                                        'id': video_id,
+                                        'fps': fps,
+                                        "duration": config.DATASET.NUM_SAMPLE_CLIPS / fps,
+                                        "sentence": sentence,
+                                        "window": [w_start, w_end],
+                                        "sentence_id": id,
+                                        "segment": (start, end),
+                                        'last_window': True,
+                                        "num_windows": num_windows - 1,
+                                        "num_frames": num_frames,
+                                        "window_from_orig": (window_from_orig[0], window_from_orig[1])
+                                    },
+                                )
+                            else:
+                                w_end = int(w_end)
+                                w_start = int(w_start)
+                                data_list += (
+                                    {
+                                        'id': video_id,
+                                        'fps': fps,
+                                        "duration": config.DATASET.NUM_SAMPLE_CLIPS / fps,
+                                        "sentence": sentence,
+                                        "window": [w_start, w_end],
+                                        "sentence_id": id,
+                                        "segment": (start, end),
+                                        'last_window': False,
+                                        "num_windows": num_windows - 1,
+                                        "num_frames": num_frames,
+                                        "window_from_orig": (window_from_orig[0], window_from_orig[1])
+                                    },
+                                )
         return data_list

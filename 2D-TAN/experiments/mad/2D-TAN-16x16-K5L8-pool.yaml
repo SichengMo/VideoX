@@ -6,7 +6,7 @@ LOG_DIR: ./log
 DATA_DIR: ./data/MAD
 
 DATASET:
-  NAME: MADdataset
+  NAME: MADClipdataset
   VIS_INPUT_TYPE: clip
   NO_VAL: True
   NUM_SAMPLE_CLIPS: 128
@@ -19,7 +19,7 @@ TEST:
   RECALL: 1,5,10,50,100
   TIOU: 0.1,0.3,0.5
   EVAL_TRAIN: False
-  NMS_THRESH: 0.03
+  NMS_THRESH: 0.3
 
 CUDNN:
   DETERMINISTIC: False
@@ -36,8 +36,8 @@ TRAIN:
 LOSS:
   NAME: bce_rescale_loss
   PARAMS:
-    MIN_IOU: 0.5
-    MAX_IOU: 1.0
+    MIN_IOU: 0.3
+    MAX_IOU: 0.7
     BIAS: 0.0
 
 TAN:
@@ -79,4 +79,4 @@ TAN:
 
 MODEL:
   NAME: TAN
-  CHECKPOINT: ./checkpoints/MADdataset/TAN_clip/iter096195.pkl
+  CHECKPOINT: ./checkpoints/128_8/MADdataset/TAN_clip/iter008751.pkl
